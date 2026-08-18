@@ -21,3 +21,11 @@ The space used when a bookmark declares none, set in config.
 
 **Import**:
 Ingesting bookmarks from an exported Netscape bookmark HTML file (Chrome, Firefox, Safari), mapping folders to tags and preserving original add dates.
+
+**Frontmatter**:
+The structured YAML metadata block at the top of a bookmark file. `url` is required; `title`, `tags`, `added`, `description`, and `space` are optional. The url is stored verbatim and never mutated.
+_Avoid_: Header, metadata block
+
+**Normalized URL**:
+A comparison-only form of a bookmark's url, computed to decide dedup identity. Never stored and never launched - the verbatim url is. Ruleset in `docs/adr/0003-url-normalization-dedup-identity.md`.
+_Avoid_: Canonical url, cleaned url
