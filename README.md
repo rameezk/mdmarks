@@ -23,6 +23,17 @@ cargo clippy --all-targets -- -D warnings
 cargo fmt
 ```
 
+## Building and running with Nix
+
+The flake exposes a reproducible optimized build (release profile, symbols stripped):
+
+```sh
+nix build            # builds ./result/bin/mdmarks
+nix run . -- add <url>   # builds if needed, then runs the binary
+```
+
+`nix build` produces the same binary you would ship; the network-dependent test suite is not run inside the Nix sandbox, so run `cargo test` in the dev shell for tests.
+
 ## Usage
 
 ```sh
