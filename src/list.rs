@@ -18,7 +18,7 @@ pub fn render_line(bookmark: &StoredBookmark) -> String {
     }
 }
 
-fn by_added_desc_then_path(a: &StoredBookmark, b: &StoredBookmark) -> Ordering {
+pub(crate) fn by_added_desc_then_path(a: &StoredBookmark, b: &StoredBookmark) -> Ordering {
     match (added_key(a), added_key(b)) {
         (Some(x), Some(y)) => y.cmp(&x).then_with(|| a.path.cmp(&b.path)),
         (Some(_), None) => Ordering::Less,

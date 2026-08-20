@@ -4,5 +4,6 @@ pub mod fetch;
 pub mod frontmatter;
 pub mod list;
 pub mod normalize;
+pub mod search;
 pub mod slug;
 pub mod store;
