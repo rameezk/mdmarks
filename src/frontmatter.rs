@@ -35,6 +35,10 @@ impl std::fmt::Display for FrontmatterError {
 impl std::error::Error for FrontmatterError {}
 
 impl Frontmatter {
+    pub fn display_title(&self) -> &str {
+        self.title.as_deref().unwrap_or(&self.url)
+    }
+
     pub fn new(url: String, title: String, added: String) -> Self {
         Frontmatter {
             url,

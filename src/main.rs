@@ -4,6 +4,7 @@ use clap::{Parser, Subcommand};
 
 use mdmarks::add::{add, AddOutcome};
 use mdmarks::config::resolve_store_path;
+use mdmarks::list::{list, render_line};
 use mdmarks::store::Store;
 
 #[derive(Parser)]
@@ -24,6 +25,7 @@ enum Command {
         #[arg(long)]
         title: Option<String>,
     },
+    List,
 }
 
 fn main() -> ExitCode {
@@ -44,6 +46,15 @@ fn run(cli: Cli) -> Result<(), String> {
             let store = Store::new(store_path);
             let outcome = add(&store, &url, title.as_deref()).map_err(|e| e.to_string())?;
             report(&outcome);
+            Ok(())
+        }
+        Command::List => {
+            let store_path = resolve_store_path().map_err(|e| e.to_string())?;
+            let store = Store::new(store_path);
+            let bookmarks = list(&store).map_err(|e| e.to_string())?;
+            for bookmark in &bookmarks {
+                println!("{}", render_line(bookmark));
+            }
             Ok(())
         }
     }

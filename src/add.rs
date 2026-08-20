@@ -50,11 +50,10 @@ pub fn add(
 
     for bookmark in store.bookmarks().map_err(AddError::Store)? {
         if normalize(&bookmark.frontmatter.url).is_ok_and(|other| other == target) {
-            let url = bookmark.frontmatter.url;
-            let title = bookmark.frontmatter.title.unwrap_or_else(|| url.clone());
+            let title = bookmark.frontmatter.display_title().to_string();
             return Ok(AddOutcome::Matched(BookmarkRef {
                 path: bookmark.path,
-                url,
+                url: bookmark.frontmatter.url,
                 title,
             }));
         }

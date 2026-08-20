@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::frontmatter::{self, Frontmatter};
 
@@ -49,20 +50,7 @@ impl Store {
 
     pub fn bookmarks(&self) -> Result<Vec<StoredBookmark>, StoreError> {
         let paths = self.bookmark_paths()?;
-        Ok(paths
-            .into_iter()
-            .filter_map(|path| match std::fs::read_to_string(&path) {
-                Ok(content) => {
-                    frontmatter::parse(&content)
-                        .ok()
-                        .map(|(fm, _body)| StoredBookmark {
-                            path,
-                            frontmatter: fm,
-                        })
-                }
-                Err(_) => None,
-            })
-            .collect())
+        Ok(scan(paths))
     }
 
     pub fn write_bookmark(&self, slug: &str, content: &str) -> Result<PathBuf, StoreError> {
@@ -102,4 +90,51 @@ impl Store {
             n += 1;
         }
     }
+}
+
+fn scan(paths: Vec<PathBuf>) -> Vec<StoredBookmark> {
+    let workers = std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(1)
+        .min(paths.len().max(1));
+
+    if workers <= 1 {
+        return paths.into_iter().filter_map(read_bookmark).collect();
+    }
+
+    let cursor = AtomicUsize::new(0);
+    let paths = &paths;
+    let cursor = &cursor;
+    let mut results = Vec::with_capacity(paths.len());
+    std::thread::scope(|scope| {
+        let handles: Vec<_> = (0..workers)
+            .map(|_| {
+                scope.spawn(move || {
+                    let mut local = Vec::new();
+                    loop {
+                        let i = cursor.fetch_add(1, Ordering::Relaxed);
+                        match paths.get(i) {
+                            Some(path) => {
+                                if let Some(b) = read_bookmark(path.clone()) {
+                                    local.push(b);
+                                }
+                            }
+                            None => break,
+                        }
+                    }
+                    local
+                })
+            })
+            .collect();
+        for handle in handles {
+            results.extend(handle.join().expect("scan worker panicked"));
+        }
+    });
+    results
+}
+
+fn read_bookmark(path: PathBuf) -> Option<StoredBookmark> {
+    let content = std::fs::read_to_string(&path).ok()?;
+    let (frontmatter, _body) = frontmatter::parse(&content).ok()?;
+    Some(StoredBookmark { path, frontmatter })
 }
