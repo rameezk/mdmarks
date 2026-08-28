@@ -49,6 +49,17 @@ impl Frontmatter {
             space: None,
         }
     }
+
+    pub fn imported(url: String, title: String) -> Self {
+        Frontmatter {
+            url,
+            title: Some(title),
+            tags: None,
+            added: None,
+            description: None,
+            space: None,
+        }
+    }
 }
 
 pub fn serialize(fm: &Frontmatter, body: &str) -> Result<String, FrontmatterError> {

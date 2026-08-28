@@ -2,6 +2,7 @@ pub mod add;
 pub mod config;
 pub mod fetch;
 pub mod frontmatter;
+pub mod import;
 pub mod json;
 pub mod list;
 pub mod normalize;
