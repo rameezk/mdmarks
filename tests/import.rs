@@ -3,6 +3,7 @@ use tempfile::TempDir;
 
 const FIXTURE: &str = include_str!("fixtures/flat-export.html");
 const NESTED: &str = include_str!("fixtures/nested-export.html");
+const DATES_TITLES: &str = include_str!("fixtures/import-dates-titles.html");
 
 fn write_fixture(dir: &TempDir) -> std::path::PathBuf {
     write_export(dir, FIXTURE)
@@ -70,7 +71,7 @@ fn writes_verbatim_url_and_link_text_title() {
 }
 
 #[test]
-fn imported_bookmarks_have_no_space_tags_added_or_description() {
+fn imported_bookmarks_have_no_space_tags_or_description() {
     let work = TempDir::new().unwrap();
     let export = write_fixture(&work);
     let store_path = work.path().join("store");
@@ -87,7 +88,7 @@ fn imported_bookmarks_have_no_space_tags_added_or_description() {
         let content = read(&path);
         assert!(content.starts_with("---\n"));
         let (frontmatter, body) = content.split_once("---\n\n").unwrap();
-        for key in ["space:", "tags:", "added:", "description:"] {
+        for key in ["space:", "tags:", "description:"] {
             assert!(
                 !frontmatter.lines().any(|line| line.starts_with(key)),
                 "frontmatter must not carry a {key} field: {frontmatter}"
@@ -95,6 +96,94 @@ fn imported_bookmarks_have_no_space_tags_added_or_description() {
         }
         assert_eq!(body, "");
     }
+}
+
+#[test]
+fn add_date_maps_to_rfc3339_added() {
+    let work = TempDir::new().unwrap();
+    let export = write_export(&work, DATES_TITLES);
+    let store_path = work.path().join("store");
+
+    Command::cargo_bin("mdmarks")
+        .unwrap()
+        .env("MDMARKS_STORE", &store_path)
+        .args(["import"])
+        .arg(&export)
+        .assert()
+        .success();
+
+    let dated = frontmatter_for_url(&store_path, "https://dated.example.com/");
+    assert!(
+        dated
+            .lines()
+            .any(|l| l == "added: 2020-09-13T12:26:40+00:00"),
+        "expected RFC 3339 added from ADD_DATE, got:\n{dated}"
+    );
+}
+
+#[test]
+fn missing_add_date_leaves_added_absent() {
+    let work = TempDir::new().unwrap();
+    let export = write_export(&work, DATES_TITLES);
+    let store_path = work.path().join("store");
+
+    Command::cargo_bin("mdmarks")
+        .unwrap()
+        .env("MDMARKS_STORE", &store_path)
+        .args(["import"])
+        .arg(&export)
+        .assert()
+        .success();
+
+    let undated = frontmatter_for_url(&store_path, "https://undated.example.com/");
+    assert!(
+        !undated.lines().any(|l| l.starts_with("added:")),
+        "bookmark without ADD_DATE must have no added field, got:\n{undated}"
+    );
+}
+
+#[test]
+fn empty_title_falls_back_to_url() {
+    let work = TempDir::new().unwrap();
+    let export = write_export(&work, DATES_TITLES);
+    let store_path = work.path().join("store");
+
+    Command::cargo_bin("mdmarks")
+        .unwrap()
+        .env("MDMARKS_STORE", &store_path)
+        .args(["import"])
+        .arg(&export)
+        .assert()
+        .success();
+
+    let blank = frontmatter_for_url(&store_path, "https://blank.example.com/");
+    assert!(
+        blank
+            .lines()
+            .any(|l| l == "title: https://blank.example.com/"),
+        "empty link text must fall back to url as title, got:\n{blank}"
+    );
+}
+
+#[test]
+fn entity_encoded_title_is_decoded() {
+    let work = TempDir::new().unwrap();
+    let export = write_export(&work, DATES_TITLES);
+    let store_path = work.path().join("store");
+
+    Command::cargo_bin("mdmarks")
+        .unwrap()
+        .env("MDMARKS_STORE", &store_path)
+        .args(["import"])
+        .arg(&export)
+        .assert()
+        .success();
+
+    let entities = frontmatter_for_url(&store_path, "https://entities.example.com/");
+    assert!(
+        entities.lines().any(|l| l == "title: Ben & Jerry's"),
+        "html entities in link text must be decoded, got:\n{entities}"
+    );
 }
 
 #[test]

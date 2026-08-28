@@ -50,12 +50,12 @@ impl Frontmatter {
         }
     }
 
-    pub fn imported(url: String, title: String, tags: Vec<String>) -> Self {
+    pub fn imported(url: String, title: String, tags: Vec<String>, added: Option<String>) -> Self {
         Frontmatter {
             url,
             title: Some(title),
             tags: if tags.is_empty() { None } else { Some(tags) },
-            added: None,
+            added,
             description: None,
             space: None,
         }
