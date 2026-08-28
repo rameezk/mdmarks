@@ -4,9 +4,10 @@ use clap::{Parser, Subcommand};
 
 use mdmarks::add::{add, AddOutcome};
 use mdmarks::config::resolve_store_path;
+use mdmarks::json;
 use mdmarks::list::{list, render_line};
 use mdmarks::search::rank;
-use mdmarks::store::Store;
+use mdmarks::store::{Store, StoredBookmark};
 
 #[derive(Parser)]
 #[command(
@@ -26,9 +27,14 @@ enum Command {
         #[arg(long)]
         title: Option<String>,
     },
-    List,
+    List {
+        #[arg(long = "json")]
+        as_json: bool,
+    },
     Search {
         query: String,
+        #[arg(long = "json")]
+        as_json: bool,
     },
 }
 
@@ -52,23 +58,31 @@ fn run(cli: Cli) -> Result<(), String> {
             report(&outcome);
             Ok(())
         }
-        Command::List => {
+        Command::List { as_json } => {
             let store_path = resolve_store_path().map_err(|e| e.to_string())?;
             let store = Store::new(store_path);
             let bookmarks = list(&store).map_err(|e| e.to_string())?;
-            for bookmark in &bookmarks {
-                println!("{}", render_line(bookmark));
-            }
+            let results: Vec<&StoredBookmark> = bookmarks.iter().collect();
+            render(&results, as_json);
             Ok(())
         }
-        Command::Search { query } => {
+        Command::Search { query, as_json } => {
             let store_path = resolve_store_path().map_err(|e| e.to_string())?;
             let store = Store::new(store_path);
             let bookmarks = store.bookmarks().map_err(|e| e.to_string())?;
-            for bookmark in rank(&bookmarks, &query) {
-                println!("{}", render_line(bookmark));
-            }
+            let results = rank(&bookmarks, &query);
+            render(&results, as_json);
             Ok(())
+        }
+    }
+}
+
+fn render(results: &[&StoredBookmark], as_json: bool) {
+    if as_json {
+        println!("{}", json::render(results));
+    } else {
+        for bookmark in results {
+            println!("{}", render_line(bookmark));
         }
     }
 }

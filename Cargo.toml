@@ -16,6 +16,7 @@ path = "src/lib.rs"
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 serde_yaml_ng = "0.10"
 toml = "0.8"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
@@ -29,5 +30,6 @@ lto = "thin"
 [dev-dependencies]
 assert_cmd = "2"
 predicates = "3"
+serde_json = "1"
 tempfile = "3"
 tiny_http = "0.12"
