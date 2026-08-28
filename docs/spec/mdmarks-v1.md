@@ -85,6 +85,19 @@ Binary: `mdmarks`. Read commands (`list`, `search`) accept `--json`.
 - **Tie-break**: `added` descending.
 - **Empty query**: returns all Bookmarks, sorted `added` descending. This is the Alfred Script Filter's initial unfiltered feed.
 
+### `--json` record contract (from #16)
+
+`list --json` and `search <query> --json` emit a JSON array of Bookmark records - the same result set, in the same order, as each command's human output (`list` by `added` descending, `search` in ranked order). The human and `--json` renderings are two views over one identical result set and never disagree. An empty Store or a no-match query emits `[]` and exits 0.
+
+Each record carries the frontmatter fields under their frontmatter-schema names; every key is always present so the shape is stable for the Alfred workflow (§7) to depend on:
+
+- `url` - string, stored **verbatim**, never mutated.
+- `title` - string or `null` when unset.
+- `tags` - array of strings, `[]` when unset.
+- `added` - RFC 3339 string or `null` when unset.
+- `description` - string or `null` when unset.
+- `space` - string or `null` when unset.
+
 ### Performance requirement (from #3)
 
 Search is scan-on-demand with **no index** (ADR-0001). The scan **must parallelize across Store files** (embarrassingly parallel, std threads, zero deps). This holds a 10k-Bookmark Store at ~67ms warm versus ~126ms serial. Revisit trigger: a Store exceeding ~10k Bookmarks, or warm search p95 above ~80-100ms (recorded in ADR-0001).
