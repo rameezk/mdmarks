@@ -1,9 +1,11 @@
+use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
 
 use mdmarks::add::{add, AddOutcome};
 use mdmarks::config::resolve_store_path;
+use mdmarks::import::import;
 use mdmarks::json;
 use mdmarks::list::{bookmarks_in_space, list, render_line};
 use mdmarks::search::rank;
@@ -39,6 +41,9 @@ enum Command {
         as_json: bool,
         #[arg(long)]
         space: Option<String>,
+    },
+    Import {
+        file: PathBuf,
     },
 }
 
@@ -81,6 +86,15 @@ fn run(cli: Cli) -> Result<(), String> {
                 bookmarks_in_space(&store, space.as_deref()).map_err(|e| e.to_string())?;
             let results = rank(&bookmarks, &query);
             render(&results, as_json);
+            Ok(())
+        }
+        Command::Import { file } => {
+            let store_path = resolve_store_path().map_err(|e| e.to_string())?;
+            let store = Store::new(store_path);
+            let summary = import(&store, &file).map_err(|e| e.to_string())?;
+            let count = summary.imported;
+            let noun = if count == 1 { "bookmark" } else { "bookmarks" };
+            println!("Imported {count} {noun}");
             Ok(())
         }
     }
