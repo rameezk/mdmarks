@@ -2,10 +2,15 @@ use assert_cmd::Command;
 use tempfile::TempDir;
 
 const FIXTURE: &str = include_str!("fixtures/flat-export.html");
+const NESTED: &str = include_str!("fixtures/nested-export.html");
 
 fn write_fixture(dir: &TempDir) -> std::path::PathBuf {
+    write_export(dir, FIXTURE)
+}
+
+fn write_export(dir: &TempDir, html: &str) -> std::path::PathBuf {
     let path = dir.path().join("export.html");
-    std::fs::write(&path, FIXTURE).unwrap();
+    std::fs::write(&path, html).unwrap();
     path
 }
 
@@ -136,5 +141,62 @@ fn shared_titles_get_collision_suffix_without_overwrite() {
             "url: https://blog.example.com/other".to_string(),
             "url: https://example.com/a?utm_source=news&id=7".to_string(),
         ]
+    );
+}
+
+fn frontmatter_for_url(store_path: &std::path::Path, url: &str) -> String {
+    let needle = format!("url: {url}");
+    md_files(store_path)
+        .iter()
+        .map(|p| read(p))
+        .find(|c| c.lines().any(|l| l == needle))
+        .unwrap_or_else(|| panic!("no bookmark file for {url}"))
+}
+
+#[test]
+fn nested_folders_map_to_tags_outer_to_inner() {
+    let work = TempDir::new().unwrap();
+    let export = write_export(&work, NESTED);
+    let store_path = work.path().join("store");
+
+    Command::cargo_bin("mdmarks")
+        .unwrap()
+        .env("MDMARKS_STORE", &store_path)
+        .args(["import"])
+        .arg(&export)
+        .assert()
+        .success();
+
+    let reading = frontmatter_for_url(&store_path, "https://reading.example.com/");
+    assert!(
+        reading.contains("tags:\n- Work\n- Reading\n"),
+        "expected outer-to-inner tags list, got:\n{reading}"
+    );
+
+    let papers = frontmatter_for_url(&store_path, "https://papers.example.com/");
+    assert!(
+        papers.contains("tags:\n- Work\n- Reading\n- Papers\n"),
+        "expected one tag per segment, got:\n{papers}"
+    );
+}
+
+#[test]
+fn top_level_bookmark_has_no_tags_field() {
+    let work = TempDir::new().unwrap();
+    let export = write_export(&work, NESTED);
+    let store_path = work.path().join("store");
+
+    Command::cargo_bin("mdmarks")
+        .unwrap()
+        .env("MDMARKS_STORE", &store_path)
+        .args(["import"])
+        .arg(&export)
+        .assert()
+        .success();
+
+    let top = frontmatter_for_url(&store_path, "https://top.example.com/");
+    assert!(
+        !top.lines().any(|l| l.starts_with("tags:")),
+        "top-level bookmark must have no tags field, got:\n{top}"
     );
 }
