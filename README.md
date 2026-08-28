@@ -4,6 +4,36 @@ A markdown-driven bookmark manager. Each Bookmark is a plain markdown file you o
 
 See `docs/spec/mdmarks-v1.md` for the v1 design, `CONTEXT.md` for domain vocabulary, and `docs/adr/` for load-bearing decisions.
 
+## Installation
+
+mdmarks is distributed as a Nix flake. With [Nix](https://nixos.org/download) (flakes enabled), pick whichever fits how you use Nix.
+
+Try it once without installing:
+
+```sh
+nix run github:rameezk/mdmarks -- add <url>
+```
+
+Install it into your profile (`mdmarks` on your `PATH`, removable with `nix profile remove`):
+
+```sh
+nix profile install github:rameezk/mdmarks
+```
+
+Add it to a declarative NixOS or home-manager config. In your flake's inputs:
+
+```nix
+inputs.mdmarks.url = "github:rameezk/mdmarks";
+```
+
+Then add the package to `home.packages` (home-manager) or `environment.systemPackages` (NixOS), matching `${system}` to your host (e.g. `x86_64-linux`, `aarch64-darwin`):
+
+```nix
+inputs.mdmarks.packages.${system}.default
+```
+
+These references track the latest commit on the default branch. To pin a specific version, append a commit hash: `github:rameezk/mdmarks/<commit>`.
+
 ## Development environment
 
 The dev environment is a Nix flake. With [Nix](https://nixos.org/download) (flakes enabled) and [direnv](https://direnv.net):
