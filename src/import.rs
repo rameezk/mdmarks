@@ -1,5 +1,7 @@
 use std::path::Path;
 
+use chrono::DateTime;
+
 use crate::frontmatter::{self, Frontmatter};
 use crate::slug::slug;
 use crate::store::{Store, StoreError};
@@ -8,6 +10,7 @@ pub struct ParsedBookmark {
     pub url: String,
     pub title: String,
     pub tags: Vec<String>,
+    pub added: Option<String>,
 }
 
 pub struct ImportSummary {
@@ -42,6 +45,7 @@ pub fn import(store: &Store, file: &Path) -> Result<ImportSummary, ImportError> 
             bookmark.url.clone(),
             bookmark.title.clone(),
             bookmark.tags.clone(),
+            bookmark.added.clone(),
         );
         let content = frontmatter::serialize(&fm, "").map_err(ImportError::Frontmatter)?;
         store
@@ -111,10 +115,12 @@ pub fn parse_netscape(html: &str) -> Vec<ParsedBookmark> {
                 };
 
                 if let Some(url) = href_value(open_tag) {
+                    let title = resolve_title(text, &url);
                     bookmarks.push(ParsedBookmark {
                         url,
-                        title: text.trim().to_string(),
+                        title,
                         tags: folder_tags(&folders),
+                        added: added_value(open_tag),
                     });
                 }
                 cursor = end;
@@ -151,12 +157,77 @@ fn folder_tags(folders: &[Option<String>]) -> Vec<String> {
 }
 
 fn href_value(open_tag: &str) -> Option<String> {
+    attr_value(open_tag, "href=")
+}
+
+fn added_value(open_tag: &str) -> Option<String> {
+    let secs: i64 = attr_value(open_tag, "add_date=")?.trim().parse().ok()?;
+    let dt = DateTime::from_timestamp(secs, 0)?;
+    Some(dt.to_rfc3339())
+}
+
+fn attr_value(open_tag: &str, attr: &str) -> Option<String> {
     let lower = open_tag.to_ascii_lowercase();
-    let attr = lower.find("href=")?;
-    let after = attr + "href=".len();
+    let at = lower.find(attr)?;
+    let after = at + attr.len();
     let value = open_tag[after..].strip_prefix('"')?;
     let end = value.find('"')?;
     Some(value[..end].to_string())
+}
+
+fn resolve_title(raw: &str, url: &str) -> String {
+    let decoded = decode_entities(raw);
+    let trimmed = decoded.trim();
+    if trimmed.is_empty() {
+        url.to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+fn decode_entities(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    let mut rest = input;
+    while let Some(amp) = rest.find('&') {
+        out.push_str(&rest[..amp]);
+        let after = &rest[amp..];
+        match decode_one_entity(after) {
+            Some((ch, len)) => {
+                out.push(ch);
+                rest = &after[len..];
+            }
+            None => {
+                out.push('&');
+                rest = &after[1..];
+            }
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
+fn decode_one_entity(s: &str) -> Option<(char, usize)> {
+    let semi = s.find(';').filter(|&i| i <= 12)?;
+    let body = &s[1..semi];
+    let ch = match body.strip_prefix('#') {
+        Some(num) => {
+            let code = match num.strip_prefix(['x', 'X']) {
+                Some(hex) => u32::from_str_radix(hex, 16).ok()?,
+                None => num.parse().ok()?,
+            };
+            char::from_u32(code)?
+        }
+        None => match body {
+            "amp" => '&',
+            "lt" => '<',
+            "gt" => '>',
+            "quot" => '"',
+            "apos" => '\'',
+            "nbsp" => '\u{00A0}',
+            _ => return None,
+        },
+    };
+    Some((ch, semi + 1))
 }
 
 #[cfg(test)]
@@ -196,9 +267,59 @@ mod tests {
     }
 
     #[test]
-    fn ignores_add_date_and_other_attributes() {
+    fn add_date_maps_to_rfc3339_added() {
         let bookmarks = parse_netscape(FIXTURE);
-        assert_eq!(bookmarks[1].url, "https://www.rust-lang.org/");
+        assert_eq!(
+            bookmarks[0].added.as_deref(),
+            Some("2020-09-13T12:26:40+00:00")
+        );
+    }
+
+    #[test]
+    fn missing_add_date_leaves_added_unset() {
+        let html = r#"<DL><p>
+            <DT><A HREF="https://no-date.example.com/">No Date</A>
+        </DL><p>"#;
+        let bookmarks = parse_netscape(html);
+        assert_eq!(bookmarks[0].added, None);
+    }
+
+    #[test]
+    fn empty_link_text_falls_back_to_url() {
+        let html = r#"<DL><p>
+            <DT><A HREF="https://blank.example.com/">   </A>
+        </DL><p>"#;
+        let bookmarks = parse_netscape(html);
+        assert_eq!(bookmarks[0].title, "https://blank.example.com/");
+    }
+
+    #[test]
+    fn link_text_is_html_entity_decoded() {
+        let html = r#"<DL><p>
+            <DT><A HREF="https://ent.example.com/">Ben &amp; Jerry&#39;s &lt;3</A>
+        </DL><p>"#;
+        let bookmarks = parse_netscape(html);
+        assert_eq!(bookmarks[0].title, "Ben & Jerry's <3");
+    }
+
+    #[test]
+    fn decodes_numeric_and_named_entities() {
+        assert_eq!(decode_entities("a &gt; b &quot;c&quot;"), "a > b \"c\"");
+        assert_eq!(
+            decode_entities("It&#x2019;s &#8212; done"),
+            "It\u{2019}s \u{2014} done"
+        );
+        assert_eq!(decode_entities("nbsp&nbsp;here"), "nbsp\u{00A0}here");
+    }
+
+    #[test]
+    fn leaves_unknown_entities_intact() {
+        assert_eq!(decode_entities("Tom &copy; & Jerry"), "Tom &copy; & Jerry");
+    }
+
+    #[test]
+    fn bare_ampersand_before_multibyte_does_not_panic() {
+        assert_eq!(decode_entities("R&café ☕ résumé"), "R&café ☕ résumé");
     }
 
     #[test]
