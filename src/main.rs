@@ -5,7 +5,7 @@ use clap::{Parser, Subcommand};
 use mdmarks::add::{add, AddOutcome};
 use mdmarks::config::resolve_store_path;
 use mdmarks::json;
-use mdmarks::list::{list, render_line};
+use mdmarks::list::{bookmarks_in_space, list, render_line};
 use mdmarks::search::rank;
 use mdmarks::store::{Store, StoredBookmark};
 
@@ -30,11 +30,15 @@ enum Command {
     List {
         #[arg(long = "json")]
         as_json: bool,
+        #[arg(long)]
+        space: Option<String>,
     },
     Search {
         query: String,
         #[arg(long = "json")]
         as_json: bool,
+        #[arg(long)]
+        space: Option<String>,
     },
 }
 
@@ -58,18 +62,23 @@ fn run(cli: Cli) -> Result<(), String> {
             report(&outcome);
             Ok(())
         }
-        Command::List { as_json } => {
+        Command::List { as_json, space } => {
             let store_path = resolve_store_path().map_err(|e| e.to_string())?;
             let store = Store::new(store_path);
-            let bookmarks = list(&store).map_err(|e| e.to_string())?;
+            let bookmarks = list(&store, space.as_deref()).map_err(|e| e.to_string())?;
             let results: Vec<&StoredBookmark> = bookmarks.iter().collect();
             render(&results, as_json);
             Ok(())
         }
-        Command::Search { query, as_json } => {
+        Command::Search {
+            query,
+            as_json,
+            space,
+        } => {
             let store_path = resolve_store_path().map_err(|e| e.to_string())?;
             let store = Store::new(store_path);
-            let bookmarks = store.bookmarks().map_err(|e| e.to_string())?;
+            let bookmarks =
+                bookmarks_in_space(&store, space.as_deref()).map_err(|e| e.to_string())?;
             let results = rank(&bookmarks, &query);
             render(&results, as_json);
             Ok(())
