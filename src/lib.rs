@@ -6,6 +6,7 @@ pub mod import;
 pub mod json;
 pub mod list;
 pub mod normalize;
+pub mod open;
 pub mod rm;
 pub mod search;
 pub mod select;

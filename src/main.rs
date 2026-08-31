@@ -8,6 +8,7 @@ use mdmarks::config::resolve_store_path;
 use mdmarks::import::import;
 use mdmarks::json;
 use mdmarks::list::{bookmarks_in_space, list, render_line};
+use mdmarks::open::{open, SystemLauncher};
 use mdmarks::rm::rm;
 use mdmarks::search::rank;
 use mdmarks::store::{Store, StoredBookmark};
@@ -47,6 +48,9 @@ enum Command {
         file: PathBuf,
     },
     Rm {
+        url: String,
+    },
+    Open {
         url: String,
     },
 }
@@ -124,6 +128,14 @@ fn run(cli: Cli) -> Result<(), String> {
             println!("Removed \"{}\"", removed.frontmatter.display_title());
             println!("  {}", removed.frontmatter.url);
             println!("  {}", removed.path.display());
+            Ok(())
+        }
+        Command::Open { url } => {
+            let store_path = resolve_store_path().map_err(|e| e.to_string())?;
+            let store = Store::new(store_path);
+            let opened = open(&store, &url, &SystemLauncher).map_err(|e| e.to_string())?;
+            println!("Opening \"{}\"", opened.frontmatter.display_title());
+            println!("  {}", opened.frontmatter.url);
             Ok(())
         }
     }
