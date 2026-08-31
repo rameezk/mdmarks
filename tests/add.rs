@@ -161,7 +161,6 @@ fn near_duplicate_variants_all_dedup() {
         "https://EXAMPLE.com/path?a=1&b=2",
         "https://example.com/path?b=2&a=1",
         "https://example.com/path/?a=1&b=2",
-        "https://example.com/path?a=1&b=2#section",
     ];
     for v in variants {
         mdmarks(&store)
@@ -171,6 +170,31 @@ fn near_duplicate_variants_all_dedup() {
             .stdout(predicates::str::contains("Already saved"));
     }
     assert_eq!(md_files(&store).len(), 1);
+}
+
+#[test]
+fn fragment_difference_creates_second_bookmark() {
+    let store = TempDir::new().unwrap();
+    mdmarks(&store)
+        .args([
+            "add",
+            "https://app.example.com/ui/#view-a",
+            "--title",
+            "View A",
+        ])
+        .assert()
+        .success();
+    mdmarks(&store)
+        .args([
+            "add",
+            "https://app.example.com/ui/#view-b",
+            "--title",
+            "View B",
+        ])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("Added"));
+    assert_eq!(md_files(&store).len(), 2);
 }
 
 #[test]
