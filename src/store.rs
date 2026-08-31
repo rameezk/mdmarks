@@ -60,6 +60,11 @@ impl Store {
         Ok(path)
     }
 
+    pub fn remove_bookmark(&self, path: &Path) -> Result<(), StoreError> {
+        std::fs::remove_file(path)?;
+        Ok(())
+    }
+
     fn bookmark_paths(&self) -> Result<Vec<PathBuf>, StoreError> {
         let entries = match std::fs::read_dir(&self.root) {
             Ok(e) => e,
