@@ -17,6 +17,8 @@ pub struct ParsedBookmark {
 
 pub struct ImportSummary {
     pub imported: usize,
+    pub duplicates: usize,
+    pub unparseable: usize,
 }
 
 #[derive(Debug)]
@@ -24,6 +26,7 @@ pub enum ImportError {
     Read(std::io::Error),
     Store(StoreError),
     Frontmatter(frontmatter::FrontmatterError),
+    NotBookmarkFile,
 }
 
 impl std::fmt::Display for ImportError {
@@ -32,6 +35,10 @@ impl std::fmt::Display for ImportError {
             ImportError::Read(e) => write!(f, "reading export: {e}"),
             ImportError::Store(e) => write!(f, "{e}"),
             ImportError::Frontmatter(e) => write!(f, "{e}"),
+            ImportError::NotBookmarkFile => write!(
+                f,
+                "no bookmark entries found; expected a Netscape bookmark export (HTML)"
+            ),
         }
     }
 }
@@ -40,7 +47,11 @@ impl std::error::Error for ImportError {}
 
 pub fn import(store: &Store, file: &Path) -> Result<ImportSummary, ImportError> {
     let html = std::fs::read_to_string(file).map_err(ImportError::Read)?;
-    let parsed = parse_netscape(&html);
+    let parsed = parse(&html);
+
+    if parsed.bookmarks.is_empty() && !parsed.recognized {
+        return Err(ImportError::NotBookmarkFile);
+    }
 
     let mut seen: HashSet<String> = store
         .bookmarks()
@@ -50,8 +61,10 @@ pub fn import(store: &Store, file: &Path) -> Result<ImportSummary, ImportError> 
         .collect();
 
     let mut imported = 0;
-    for bookmark in &parsed {
+    let mut duplicates = 0;
+    for bookmark in &parsed.bookmarks {
         if !seen.insert(identity_key(&bookmark.url)) {
+            duplicates += 1;
             continue;
         }
 
@@ -68,7 +81,11 @@ pub fn import(store: &Store, file: &Path) -> Result<ImportSummary, ImportError> 
         imported += 1;
     }
 
-    Ok(ImportSummary { imported })
+    Ok(ImportSummary {
+        imported,
+        duplicates,
+        unparseable: parsed.unparseable,
+    })
 }
 
 fn identity_key(url: &str) -> String {
@@ -85,9 +102,21 @@ enum Token {
     Anchor,
 }
 
+struct ParseOutcome {
+    bookmarks: Vec<ParsedBookmark>,
+    unparseable: usize,
+    recognized: bool,
+}
+
 pub fn parse_netscape(html: &str) -> Vec<ParsedBookmark> {
+    parse(html).bookmarks
+}
+
+fn parse(html: &str) -> ParseOutcome {
     let lower = html.to_ascii_lowercase();
+    let recognized = lower.contains("netscape-bookmark") || lower.contains("<dl");
     let mut bookmarks = Vec::new();
+    let mut unparseable = 0;
     let mut folders: Vec<Option<String>> = Vec::new();
     let mut pending: Option<String> = None;
     let mut cursor = 0;
@@ -134,21 +163,28 @@ pub fn parse_netscape(html: &str) -> Vec<ParsedBookmark> {
                     break;
                 };
 
-                if let Some(url) = href_value(open_tag) {
-                    let title = resolve_title(text, &url);
-                    bookmarks.push(ParsedBookmark {
-                        url,
-                        title,
-                        tags: folder_tags(&folders),
-                        added: added_value(open_tag),
-                    });
+                match href_value(open_tag) {
+                    Some(url) => {
+                        let title = resolve_title(text, &url);
+                        bookmarks.push(ParsedBookmark {
+                            url,
+                            title,
+                            tags: folder_tags(&folders),
+                            added: added_value(open_tag),
+                        });
+                    }
+                    None => unparseable += 1,
                 }
                 cursor = end;
             }
         }
     }
 
-    bookmarks
+    ParseOutcome {
+        bookmarks,
+        unparseable,
+        recognized,
+    }
 }
 
 fn tag_content<'a>(
@@ -345,6 +381,34 @@ mod tests {
     #[test]
     fn empty_input_yields_no_bookmarks() {
         assert!(parse_netscape("").is_empty());
+    }
+
+    #[test]
+    fn url_less_anchors_are_counted_as_unparseable() {
+        let html = r#"<DL><p>
+            <DT><A HREF="https://ok.example.com/">Ok</A>
+            <DT><A ADD_DATE="1600000100">No Href</A>
+            <DT><A NAME="section">Named Anchor</A>
+        </DL><p>"#;
+        let outcome = parse(html);
+        assert_eq!(outcome.bookmarks.len(), 1);
+        assert_eq!(outcome.unparseable, 2);
+    }
+
+    #[test]
+    fn netscape_structure_is_recognized_even_with_zero_bookmarks() {
+        let html = r#"<!DOCTYPE NETSCAPE-Bookmark-file-1>
+            <DL><p></DL><p>"#;
+        let outcome = parse(html);
+        assert!(outcome.bookmarks.is_empty());
+        assert!(outcome.recognized);
+    }
+
+    #[test]
+    fn non_bookmark_file_is_not_recognized() {
+        let outcome = parse("{\"not\": \"a bookmark file\"}");
+        assert!(outcome.bookmarks.is_empty());
+        assert!(!outcome.recognized);
     }
 
     #[test]

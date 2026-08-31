@@ -92,12 +92,22 @@ fn run(cli: Cli) -> Result<(), String> {
             let store_path = resolve_store_path().map_err(|e| e.to_string())?;
             let store = Store::new(store_path);
             let summary = import(&store, &file).map_err(|e| e.to_string())?;
-            let count = summary.imported;
-            let noun = if count == 1 { "bookmark" } else { "bookmarks" };
-            println!("Imported {count} {noun}");
+            println!(
+                "Imported {}",
+                quantity(summary.imported, "bookmark", "bookmarks")
+            );
+            println!(
+                "Skipped {} and {}",
+                quantity(summary.duplicates, "duplicate", "duplicates"),
+                quantity(summary.unparseable, "unparseable entry", "unparseable entries"),
+            );
             Ok(())
         }
     }
+}
+
+fn quantity(n: usize, singular: &str, plural: &str) -> String {
+    format!("{n} {}", if n == 1 { singular } else { plural })
 }
 
 fn render(results: &[&StoredBookmark], as_json: bool) {
