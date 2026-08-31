@@ -5,6 +5,7 @@ const FIXTURE: &str = include_str!("fixtures/flat-export.html");
 const NESTED: &str = include_str!("fixtures/nested-export.html");
 const DATES_TITLES: &str = include_str!("fixtures/import-dates-titles.html");
 const DUPS: &str = include_str!("fixtures/import-dups.html");
+const MESSY: &str = include_str!("fixtures/import-messy.html");
 
 fn write_fixture(dir: &TempDir) -> std::path::PathBuf {
     write_export(dir, FIXTURE)
@@ -382,6 +383,155 @@ fn unparseable_url_is_still_idempotent_across_runs() {
         "re-import of an unparseable url must write nothing, got: {second_stdout}"
     );
     assert_eq!(md_files(&store_path).len(), first);
+}
+
+#[test]
+fn messy_export_imports_good_links_and_skips_the_rest() {
+    let work = TempDir::new().unwrap();
+    let export = write_export(&work, MESSY);
+    let store_path = work.path().join("store");
+
+    import_export(&store_path, &export);
+
+    let names: Vec<String> = md_files(&store_path)
+        .iter()
+        .map(|p| p.file_name().unwrap().to_string_lossy().to_string())
+        .collect();
+    assert_eq!(md_files(&store_path).len(), 2, "got files: {names:?}");
+    frontmatter_for_url(&store_path, "https://good.example.com/one");
+    frontmatter_for_url(&store_path, "https://good.example.com/two");
+}
+
+#[test]
+fn messy_export_writes_no_empty_bookmarks() {
+    let work = TempDir::new().unwrap();
+    let export = write_export(&work, MESSY);
+    let store_path = work.path().join("store");
+
+    import_export(&store_path, &export);
+
+    for path in md_files(&store_path) {
+        let content = read(&path);
+        let url_line = content
+            .lines()
+            .find(|l| l.starts_with("url:"))
+            .unwrap_or_else(|| panic!("bookmark file has no url:\n{content}"));
+        assert!(
+            url_line.trim() != "url:" && !url_line.trim().ends_with("url:"),
+            "bookmark file has an empty url:\n{content}"
+        );
+    }
+}
+
+#[test]
+fn messy_export_summary_reports_all_three_counts() {
+    let work = TempDir::new().unwrap();
+    let export = write_export(&work, MESSY);
+    let store_path = work.path().join("store");
+
+    let stdout = import_export(&store_path, &export);
+    assert!(
+        stdout.contains("Imported 2 bookmarks"),
+        "expected 2 imported, got: {stdout}"
+    );
+    assert!(
+        stdout.contains("1 duplicate"),
+        "expected 1 duplicate skipped, got: {stdout}"
+    );
+    assert!(
+        stdout.contains("1 unparseable entry"),
+        "expected 1 unparseable skipped, got: {stdout}"
+    );
+}
+
+#[test]
+fn clean_import_summary_reports_zero_skips() {
+    let work = TempDir::new().unwrap();
+    let export = write_fixture(&work);
+    let store_path = work.path().join("store");
+
+    let stdout = import_export(&store_path, &export);
+    assert!(
+        stdout.contains("Imported 3 bookmarks"),
+        "expected 3 imported, got: {stdout}"
+    );
+    assert!(
+        stdout.contains("0 duplicates") && stdout.contains("0 unparseable entries"),
+        "clean import must still report both zero counts, got: {stdout}"
+    );
+}
+
+#[test]
+fn valid_file_with_zero_bookmarks_exits_zero_and_writes_nothing() {
+    let work = TempDir::new().unwrap();
+    let html = r#"<!DOCTYPE NETSCAPE-Bookmark-file-1>
+    <DL><p>
+        <DT><H3>Empty Folder</H3>
+        <DL><p>
+        </DL><p>
+    </DL><p>"#;
+    let export = write_export(&work, html);
+    let store_path = work.path().join("store");
+
+    let stdout = import_export(&store_path, &export);
+    assert!(
+        stdout.contains("Imported 0 bookmarks"),
+        "expected 0 imported, got: {stdout}"
+    );
+    assert!(!store_path.exists(), "nothing should have been written");
+}
+
+#[test]
+fn all_duplicate_reimport_exits_zero() {
+    let work = TempDir::new().unwrap();
+    let export = write_fixture(&work);
+    let store_path = work.path().join("store");
+
+    import_export(&store_path, &export);
+    let stdout = import_export(&store_path, &export);
+    assert!(
+        stdout.contains("Imported 0 bookmarks"),
+        "all-duplicate re-import writes nothing, got: {stdout}"
+    );
+    assert!(
+        stdout.contains("3 duplicates"),
+        "all-duplicate re-import must report the already-present count, got: {stdout}"
+    );
+}
+
+#[test]
+fn missing_file_exits_nonzero_and_writes_nothing() {
+    let work = TempDir::new().unwrap();
+    let store_path = work.path().join("store");
+    let missing = work.path().join("does-not-exist.html");
+
+    Command::cargo_bin("mdmarks")
+        .unwrap()
+        .env("MDMARKS_STORE", &store_path)
+        .args(["import"])
+        .arg(&missing)
+        .assert()
+        .failure();
+
+    assert!(!store_path.exists(), "nothing should have been written");
+}
+
+#[test]
+fn wrong_file_type_exits_nonzero_with_clear_message_and_writes_nothing() {
+    let work = TempDir::new().unwrap();
+    let export = write_export(&work, "{\"not\": \"a bookmark file\"}\n");
+    let store_path = work.path().join("store");
+
+    Command::cargo_bin("mdmarks")
+        .unwrap()
+        .env("MDMARKS_STORE", &store_path)
+        .args(["import"])
+        .arg(&export)
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("no bookmark entries found"));
+
+    assert!(!store_path.exists(), "nothing should have been written");
 }
 
 #[test]
