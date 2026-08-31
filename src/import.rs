@@ -1,8 +1,10 @@
+use std::collections::HashSet;
 use std::path::Path;
 
 use chrono::DateTime;
 
 use crate::frontmatter::{self, Frontmatter};
+use crate::normalize::normalize;
 use crate::slug::slug;
 use crate::store::{Store, StoreError};
 
@@ -40,7 +42,19 @@ pub fn import(store: &Store, file: &Path) -> Result<ImportSummary, ImportError> 
     let html = std::fs::read_to_string(file).map_err(ImportError::Read)?;
     let parsed = parse_netscape(&html);
 
+    let mut seen: HashSet<String> = store
+        .bookmarks()
+        .map_err(ImportError::Store)?
+        .iter()
+        .map(|b| identity_key(&b.frontmatter.url))
+        .collect();
+
+    let mut imported = 0;
     for bookmark in &parsed {
+        if !seen.insert(identity_key(&bookmark.url)) {
+            continue;
+        }
+
         let fm = Frontmatter::imported(
             bookmark.url.clone(),
             bookmark.title.clone(),
@@ -51,11 +65,17 @@ pub fn import(store: &Store, file: &Path) -> Result<ImportSummary, ImportError> 
         store
             .write_bookmark(&slug(&bookmark.title), &content)
             .map_err(ImportError::Store)?;
+        imported += 1;
     }
 
-    Ok(ImportSummary {
-        imported: parsed.len(),
-    })
+    Ok(ImportSummary { imported })
+}
+
+fn identity_key(url: &str) -> String {
+    match normalize(url) {
+        Ok(normalized) => normalized.as_str().to_string(),
+        Err(_) => url.to_string(),
+    }
 }
 
 enum Token {

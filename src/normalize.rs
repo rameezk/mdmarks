@@ -5,6 +5,12 @@ use url::{form_urlencoded, Url};
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NormalizedUrl(String);
 
+impl NormalizedUrl {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
 #[derive(Debug)]
 pub struct NormalizeError(url::ParseError);
 

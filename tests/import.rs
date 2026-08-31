@@ -4,6 +4,7 @@ use tempfile::TempDir;
 const FIXTURE: &str = include_str!("fixtures/flat-export.html");
 const NESTED: &str = include_str!("fixtures/nested-export.html");
 const DATES_TITLES: &str = include_str!("fixtures/import-dates-titles.html");
+const DUPS: &str = include_str!("fixtures/import-dups.html");
 
 fn write_fixture(dir: &TempDir) -> std::path::PathBuf {
     write_export(dir, FIXTURE)
@@ -288,4 +289,120 @@ fn top_level_bookmark_has_no_tags_field() {
         !top.lines().any(|l| l.starts_with("tags:")),
         "top-level bookmark must have no tags field, got:\n{top}"
     );
+}
+
+fn import_export(store_path: &std::path::Path, export: &std::path::Path) -> String {
+    let output = Command::cargo_bin("mdmarks")
+        .unwrap()
+        .env("MDMARKS_STORE", store_path)
+        .args(["import"])
+        .arg(export)
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    String::from_utf8(output).unwrap()
+}
+
+#[test]
+fn re_importing_same_export_is_idempotent() {
+    let work = TempDir::new().unwrap();
+    let export = write_fixture(&work);
+    let store_path = work.path().join("store");
+
+    import_export(&store_path, &export);
+    let first: Vec<_> = md_files(&store_path);
+    let first_bodies: Vec<String> = first.iter().map(|p| read(p)).collect();
+
+    let second_stdout = import_export(&store_path, &export);
+    assert!(
+        second_stdout.contains("Imported 0 bookmarks"),
+        "second run must write nothing, got: {second_stdout}"
+    );
+
+    let after: Vec<String> = md_files(&store_path).iter().map(|p| read(p)).collect();
+    assert_eq!(first.len(), 3);
+    assert_eq!(first_bodies, after, "re-import must not change the store");
+}
+
+#[test]
+fn within_file_duplicate_keeps_first_occurrence() {
+    let work = TempDir::new().unwrap();
+    let export = write_export(&work, DUPS);
+    let store_path = work.path().join("store");
+
+    let stdout = import_export(&store_path, &export);
+    assert!(
+        stdout.contains("Imported 3 bookmarks"),
+        "one of the dup pair must be skipped, got: {stdout}"
+    );
+
+    let dup = frontmatter_for_url(&store_path, "https://dup.example.com/page");
+    assert!(
+        dup.contains("tags:\n- Work\n"),
+        "first occurrence (Work folder) must win, got:\n{dup}"
+    );
+    assert!(
+        md_files(&store_path)
+            .iter()
+            .map(|p| read(p))
+            .all(|c| !c.contains("http://www.dup.example.com/page/?utm_source=x#frag")),
+        "the near-duplicate second occurrence must not be written"
+    );
+}
+
+#[test]
+fn case_differing_path_still_imports_as_distinct() {
+    let work = TempDir::new().unwrap();
+    let export = write_export(&work, DUPS);
+    let store_path = work.path().join("store");
+
+    import_export(&store_path, &export);
+
+    frontmatter_for_url(&store_path, "https://distinct.example.com/Path");
+    frontmatter_for_url(&store_path, "https://distinct.example.com/path");
+}
+
+#[test]
+fn unparseable_url_is_still_idempotent_across_runs() {
+    let work = TempDir::new().unwrap();
+    let html = r#"<DL><p>
+        <DT><A HREF="not a url" ADD_DATE="1600000000">Malformed</A>
+    </DL><p>"#;
+    let export = write_export(&work, html);
+    let store_path = work.path().join("store");
+
+    import_export(&store_path, &export);
+    let first = md_files(&store_path).len();
+
+    let second_stdout = import_export(&store_path, &export);
+    assert!(
+        second_stdout.contains("Imported 0 bookmarks"),
+        "re-import of an unparseable url must write nothing, got: {second_stdout}"
+    );
+    assert_eq!(md_files(&store_path).len(), first);
+}
+
+#[test]
+fn hand_added_url_is_recognized_and_skipped_on_import() {
+    let work = TempDir::new().unwrap();
+    let store_path = work.path().join("store");
+
+    Command::cargo_bin("mdmarks")
+        .unwrap()
+        .env("MDMARKS_STORE", &store_path)
+        .args(["add", "http://WWW.Example.com/a?id=7&utm_source=x#frag"])
+        .assert()
+        .success();
+
+    let before = md_files(&store_path).len();
+
+    let export = write_fixture(&work);
+    let stdout = import_export(&store_path, &export);
+    assert!(
+        stdout.contains("Imported 2 bookmarks"),
+        "the hand-added url must be recognized as the same bookmark, got: {stdout}"
+    );
+    assert_eq!(md_files(&store_path).len(), before + 2);
 }
