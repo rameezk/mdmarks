@@ -98,9 +98,19 @@ fn run(cli: Cli) -> Result<(), String> {
             );
             println!(
                 "Skipped {} and {}",
-                quantity(summary.duplicates, "duplicate", "duplicates"),
-                quantity(summary.unparseable, "unparseable entry", "unparseable entries"),
+                quantity(summary.duplicates.len(), "duplicate", "duplicates"),
+                quantity(
+                    summary.unparseable,
+                    "unparseable entry",
+                    "unparseable entries"
+                ),
             );
+            if !summary.duplicates.is_empty() {
+                println!("Duplicates skipped:");
+                for dup in &summary.duplicates {
+                    println!("  {}  {}", dup.title, dup.url);
+                }
+            }
             Ok(())
         }
     }

@@ -1,3 +1,5 @@
+const MAX_SLUG_LEN: usize = 200;
+
 pub fn slug(title: &str) -> String {
     let mut out = String::new();
     let mut pending_dash = false;
@@ -12,6 +14,14 @@ pub fn slug(title: &str) -> String {
         } else {
             pending_dash = true;
         }
+        if out.len() >= MAX_SLUG_LEN {
+            break;
+        }
+    }
+
+    out.truncate(MAX_SLUG_LEN);
+    while out.ends_with('-') {
+        out.pop();
     }
 
     if out.is_empty() {
@@ -48,5 +58,23 @@ mod tests {
     fn empty_and_symbol_only_fall_back() {
         assert_eq!(slug(""), "bookmark");
         assert_eq!(slug("!!!"), "bookmark");
+    }
+
+    #[test]
+    fn caps_length_and_leaves_room_for_extension_and_suffix() {
+        let long = "a".repeat(1000);
+        let out = slug(&long);
+        assert!(out.len() <= MAX_SLUG_LEN, "slug too long: {}", out.len());
+    }
+
+    #[test]
+    fn truncation_does_not_leave_a_trailing_dash() {
+        let title = format!("{} tail", "word ".repeat(60));
+        let out = slug(&title);
+        assert!(out.len() <= MAX_SLUG_LEN);
+        assert!(
+            !out.ends_with('-'),
+            "trailing dash left after truncation: {out}"
+        );
     }
 }

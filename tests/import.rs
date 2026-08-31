@@ -6,6 +6,8 @@ const NESTED: &str = include_str!("fixtures/nested-export.html");
 const DATES_TITLES: &str = include_str!("fixtures/import-dates-titles.html");
 const DUPS: &str = include_str!("fixtures/import-dups.html");
 const MESSY: &str = include_str!("fixtures/import-messy.html");
+const FRAGMENTS: &str = include_str!("fixtures/import-fragments.html");
+const LONG_TITLE: &str = include_str!("fixtures/import-long-title.html");
 
 fn write_fixture(dir: &TempDir) -> std::path::PathBuf {
     write_export(dir, FIXTURE)
@@ -235,6 +237,86 @@ fn shared_titles_get_collision_suffix_without_overwrite() {
     );
 }
 
+#[test]
+fn fragment_only_differences_import_as_distinct_bookmarks() {
+    let work = TempDir::new().unwrap();
+    let export = write_export(&work, FRAGMENTS);
+    let store_path = work.path().join("store");
+
+    let stdout = import_export(&store_path, &export);
+    assert!(
+        stdout.contains("Imported 6 bookmarks"),
+        "fragment-routed urls must each import; only the bare-hash entry merges, got: {stdout}"
+    );
+
+    frontmatter_for_url(&store_path, "https://app.example.com/ui/logs/#query-alpha");
+    frontmatter_for_url(&store_path, "https://app.example.com/ui/logs/#query-beta");
+    frontmatter_for_url(
+        &store_path,
+        "https://console.example.com/#resource/subscriptions/aaaa",
+    );
+    frontmatter_for_url(
+        &store_path,
+        "https://console.example.com/#resource/subscriptions/bbbb",
+    );
+    frontmatter_for_url(&store_path, "https://docs.example.com/guide#intro");
+}
+
+#[test]
+fn bare_trailing_hash_merges_with_no_fragment() {
+    let work = TempDir::new().unwrap();
+    let export = write_export(&work, FRAGMENTS);
+    let store_path = work.path().join("store");
+
+    let stdout = import_export(&store_path, &export);
+    assert!(
+        stdout.contains("1 duplicate"),
+        "guide# and guide must dedup as one, got: {stdout}"
+    );
+}
+
+#[test]
+fn long_title_imports_and_does_not_abort_the_run() {
+    let work = TempDir::new().unwrap();
+    let export = write_export(&work, LONG_TITLE);
+    let store_path = work.path().join("store");
+
+    let stdout = import_export(&store_path, &export);
+    assert!(
+        stdout.contains("Imported 3 bookmarks"),
+        "a pathological title must not abort the run, got: {stdout}"
+    );
+
+    frontmatter_for_url(&store_path, "https://short.example.com/before");
+    frontmatter_for_url(&store_path, "https://long.example.com/x");
+    frontmatter_for_url(&store_path, "https://short.example.com/after");
+
+    for path in md_files(&store_path) {
+        let name = path.file_name().unwrap().to_string_lossy();
+        assert!(
+            name.len() <= 255,
+            "filename exceeds the 255-byte component limit: {name}"
+        );
+    }
+}
+
+#[test]
+fn duplicates_are_listed_with_title_and_url() {
+    let work = TempDir::new().unwrap();
+    let export = write_export(&work, DUPS);
+    let store_path = work.path().join("store");
+
+    let stdout = import_export(&store_path, &export);
+    assert!(
+        stdout.contains("Second Occurrence"),
+        "skipped duplicate must be listed by title, got: {stdout}"
+    );
+    assert!(
+        stdout.contains("http://www.dup.example.com/page/?utm_source=x"),
+        "skipped duplicate must be listed with its verbatim url, got: {stdout}"
+    );
+}
+
 fn frontmatter_for_url(store_path: &std::path::Path, url: &str) -> String {
     let needle = format!("url: {url}");
     md_files(store_path)
@@ -348,7 +430,7 @@ fn within_file_duplicate_keeps_first_occurrence() {
         md_files(&store_path)
             .iter()
             .map(|p| read(p))
-            .all(|c| !c.contains("http://www.dup.example.com/page/?utm_source=x#frag")),
+            .all(|c| !c.contains("http://www.dup.example.com/page/?utm_source=x")),
         "the near-duplicate second occurrence must not be written"
     );
 }
@@ -542,7 +624,7 @@ fn hand_added_url_is_recognized_and_skipped_on_import() {
     Command::cargo_bin("mdmarks")
         .unwrap()
         .env("MDMARKS_STORE", &store_path)
-        .args(["add", "http://WWW.Example.com/a?id=7&utm_source=x#frag"])
+        .args(["add", "http://WWW.Example.com/a?id=7&utm_source=x"])
         .assert()
         .success();
 

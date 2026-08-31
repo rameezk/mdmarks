@@ -15,9 +15,14 @@ pub struct ParsedBookmark {
     pub added: Option<String>,
 }
 
+pub struct SkippedDuplicate {
+    pub title: String,
+    pub url: String,
+}
+
 pub struct ImportSummary {
     pub imported: usize,
-    pub duplicates: usize,
+    pub duplicates: Vec<SkippedDuplicate>,
     pub unparseable: usize,
 }
 
@@ -25,6 +30,12 @@ pub struct ImportSummary {
 pub enum ImportError {
     Read(std::io::Error),
     Store(StoreError),
+    Write {
+        title: String,
+        url: String,
+        imported: usize,
+        source: StoreError,
+    },
     Frontmatter(frontmatter::FrontmatterError),
     NotBookmarkFile,
 }
@@ -34,6 +45,16 @@ impl std::fmt::Display for ImportError {
         match self {
             ImportError::Read(e) => write!(f, "reading export: {e}"),
             ImportError::Store(e) => write!(f, "{e}"),
+            ImportError::Write {
+                title,
+                url,
+                imported,
+                source,
+            } => write!(
+                f,
+                "{source} while writing \"{title}\" ({url}); {} imported before this entry, later entries not written",
+                quantity(*imported)
+            ),
             ImportError::Frontmatter(e) => write!(f, "{e}"),
             ImportError::NotBookmarkFile => write!(
                 f,
@@ -41,6 +62,10 @@ impl std::fmt::Display for ImportError {
             ),
         }
     }
+}
+
+fn quantity(n: usize) -> String {
+    format!("{n} {}", if n == 1 { "bookmark" } else { "bookmarks" })
 }
 
 impl std::error::Error for ImportError {}
@@ -61,10 +86,13 @@ pub fn import(store: &Store, file: &Path) -> Result<ImportSummary, ImportError> 
         .collect();
 
     let mut imported = 0;
-    let mut duplicates = 0;
+    let mut duplicates = Vec::new();
     for bookmark in &parsed.bookmarks {
         if !seen.insert(identity_key(&bookmark.url)) {
-            duplicates += 1;
+            duplicates.push(SkippedDuplicate {
+                title: bookmark.title.clone(),
+                url: bookmark.url.clone(),
+            });
             continue;
         }
 
@@ -77,7 +105,12 @@ pub fn import(store: &Store, file: &Path) -> Result<ImportSummary, ImportError> 
         let content = frontmatter::serialize(&fm, "").map_err(ImportError::Frontmatter)?;
         store
             .write_bookmark(&slug(&bookmark.title), &content)
-            .map_err(ImportError::Store)?;
+            .map_err(|source| ImportError::Write {
+                title: bookmark.title.clone(),
+                url: bookmark.url.clone(),
+                imported,
+                source,
+            })?;
         imported += 1;
     }
 

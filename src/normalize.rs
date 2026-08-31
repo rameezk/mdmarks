@@ -58,6 +58,10 @@ pub fn normalize(input: &str) -> Result<NormalizedUrl, NormalizeError> {
         out.push('?');
         out.push_str(&query);
     }
+    if let Some(fragment) = parsed.fragment().filter(|f| !f.is_empty()) {
+        out.push('#');
+        out.push_str(fragment);
+    }
 
     Ok(NormalizedUrl(out))
 }
@@ -112,8 +116,18 @@ mod tests {
     }
 
     #[test]
-    fn fragment_dropped() {
-        merges("https://example.com/a#section", "https://example.com/a");
+    fn non_empty_fragment_is_part_of_identity() {
+        distinct("https://example.com/a#section", "https://example.com/a");
+    }
+
+    #[test]
+    fn different_fragments_are_distinct() {
+        distinct("https://example.com/a#one", "https://example.com/a#two");
+    }
+
+    #[test]
+    fn empty_fragment_merges_with_no_fragment() {
+        merges("https://example.com/a#", "https://example.com/a");
     }
 
     #[test]
@@ -143,7 +157,7 @@ mod tests {
     #[test]
     fn combined_cosmetic_differences_merge() {
         merges(
-            "http://WWW.Example.com/path/?b=2&a=1&utm_medium=email#frag",
+            "http://WWW.Example.com/path/?b=2&a=1&utm_medium=email",
             "https://example.com/path?a=1&b=2",
         );
     }
