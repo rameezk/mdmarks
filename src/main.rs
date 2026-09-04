@@ -4,11 +4,11 @@ use std::process::ExitCode;
 use clap::{Parser, Subcommand};
 
 use mdmarks::add::{add, AddOutcome};
-use mdmarks::config::resolve_store_path;
+use mdmarks::config::{resolve_store_path, Config};
 use mdmarks::import::import;
 use mdmarks::json;
 use mdmarks::list::{bookmarks_in_space, list, render_line};
-use mdmarks::open::{open, SystemLauncher};
+use mdmarks::open::{open, SpaceResolver, SystemLauncher};
 use mdmarks::rm::rm;
 use mdmarks::search::rank;
 use mdmarks::store::{Store, StoredBookmark};
@@ -52,6 +52,8 @@ enum Command {
     },
     Open {
         url: String,
+        #[arg(long)]
+        space: Option<String>,
     },
 }
 
@@ -130,10 +132,16 @@ fn run(cli: Cli) -> Result<(), String> {
             println!("  {}", removed.path.display());
             Ok(())
         }
-        Command::Open { url } => {
-            let store_path = resolve_store_path().map_err(|e| e.to_string())?;
-            let store = Store::new(store_path);
-            let opened = open(&store, &url, &SystemLauncher).map_err(|e| e.to_string())?;
+        Command::Open { url, space } => {
+            let config = Config::load().map_err(|e| e.to_string())?;
+            let store = Store::new(&config.store);
+            let resolver = SpaceResolver {
+                override_space: space.as_deref(),
+                default_space: config.default_space.as_deref(),
+                spaces: &config.spaces,
+            };
+            let opened =
+                open(&store, &url, &resolver, &SystemLauncher).map_err(|e| e.to_string())?;
             println!("Opening \"{}\"", opened.frontmatter.display_title());
             println!("  {}", opened.frontmatter.url);
             Ok(())
