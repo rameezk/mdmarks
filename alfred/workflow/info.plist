@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>bundleid</key>
+	<string>dev.rameezk.mdmarks</string>
+	<key>category</key>
+	<string>Tools</string>
+	<key>connections</key>
+	<dict/>
+	<key>createdby</key>
+	<string>Rameez Khan</string>
+	<key>description</key>
+	<string>Fuzzy-find and open mdmarks Bookmarks across Spaces.</string>
+	<key>disabled</key>
+	<false/>
+	<key>name</key>
+	<string>mdmarks</string>
+	<key>objects</key>
+	<array/>
+	<key>readme</key>
+	<string>Assemble the node graph in the Alfred GUI following alfred/README.md. Keyword `bm` -> Script Filter (External Script ./script_filter.sh) -> Enter runs `mdmarks open "$1"`, ⌘↵ copies to clipboard, right-arrow uses each item's action.url. Set PATH and MDMARKS_BIN in the Environment Variables pane.</string>
+	<key>uidata</key>
+	<dict/>
+	<key>userconfigurationconfig</key>
+	<array>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>default</key>
+				<string>mdmarks</string>
+				<key>placeholder</key>
+				<string>mdmarks</string>
+				<key>required</key>
+				<false/>
+				<key>trim</key>
+				<true/>
+			</dict>
+			<key>description</key>
+			<string>Absolute path to the mdmarks binary, or a name resolvable on the workflow PATH.</string>
+			<key>label</key>
+			<string>mdmarks binary</string>
+			<key>type</key>
+			<string>textfield</string>
+			<key>variable</key>
+			<string>MDMARKS_BIN</string>
+		</dict>
+	</array>
+	<key>variables</key>
+	<dict>
+		<key>MDMARKS_BIN</key>
+		<string>mdmarks</string>
+		<key>PATH</key>
+		<string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+	</dict>
+	<key>variablesdontexport</key>
+	<array/>
+	<key>version</key>
+	<string>0.1.0</string>
+	<key>webaddress</key>
+	<string>https://github.com/rameezk/mdmarks</string>
+</dict>
+</plist>

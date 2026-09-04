@@ -2,7 +2,7 @@
 
 A markdown-driven bookmark manager. Each Bookmark is a plain markdown file you own - readable anywhere and native to Obsidian - driven by a fast Rust CLI.
 
-See `docs/spec/mdmarks-v1.md` for the v1 design, `CONTEXT.md` for domain vocabulary, and `docs/adr/` for load-bearing decisions.
+See `docs/spec/mdmarks-v1.md` for the v1 design, `CONTEXT.md` for domain vocabulary, and `docs/adr/` for load-bearing decisions. `alfred/` holds the Alfred workflow bundle and its GUI assembly checklist.
 
 ## Installation
 
