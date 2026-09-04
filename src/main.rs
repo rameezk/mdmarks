@@ -4,7 +4,7 @@ use std::process::ExitCode;
 use clap::{Parser, Subcommand};
 
 use mdmarks::add::{add, AddOutcome};
-use mdmarks::config::{resolve_store_path, Config};
+use mdmarks::config::{self, resolve_store_path, Config};
 use mdmarks::import::import;
 use mdmarks::json;
 use mdmarks::list::{bookmarks_in_space, list, render_line};
@@ -134,11 +134,13 @@ fn run(cli: Cli) -> Result<(), String> {
         }
         Command::Open { url, space } => {
             let config = Config::load().map_err(|e| e.to_string())?;
+            let app_support = config::app_support_dir().map_err(|e| e.to_string())?;
             let store = Store::new(&config.store);
             let resolver = SpaceResolver {
                 override_space: space.as_deref(),
                 default_space: config.default_space.as_deref(),
                 spaces: &config.spaces,
+                app_support: &app_support,
             };
             let opened =
                 open(&store, &url, &resolver, &SystemLauncher).map_err(|e| e.to_string())?;
