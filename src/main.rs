@@ -1,9 +1,10 @@
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 
 use mdmarks::add::{add, AddOutcome};
+use mdmarks::alfred;
 use mdmarks::config::{self, resolve_store_path, Config};
 use mdmarks::import::import;
 use mdmarks::json;
@@ -43,6 +44,8 @@ enum Command {
         as_json: bool,
         #[arg(long)]
         space: Option<String>,
+        #[arg(long, value_enum)]
+        format: Option<SearchFormat>,
     },
     Import {
         file: PathBuf,
@@ -55,6 +58,11 @@ enum Command {
         #[arg(long)]
         space: Option<String>,
     },
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+enum SearchFormat {
+    Alfred,
 }
 
 fn main() -> ExitCode {
@@ -89,13 +97,22 @@ fn run(cli: Cli) -> Result<(), String> {
             query,
             as_json,
             space,
+            format,
         } => {
-            let store_path = resolve_store_path().map_err(|e| e.to_string())?;
-            let store = Store::new(store_path);
+            let config = Config::load().map_err(|e| e.to_string())?;
+            let store = Store::new(&config.store);
             let bookmarks =
                 bookmarks_in_space(&store, space.as_deref()).map_err(|e| e.to_string())?;
             let results = rank(&bookmarks, &query);
-            render(&results, as_json);
+            match format {
+                Some(SearchFormat::Alfred) => {
+                    println!(
+                        "{}",
+                        alfred::render(&results, config.default_space.as_deref())
+                    );
+                }
+                None => render(&results, as_json),
+            }
             Ok(())
         }
         Command::Import { file } => {

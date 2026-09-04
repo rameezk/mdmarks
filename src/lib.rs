@@ -1,4 +1,5 @@
 pub mod add;
+pub mod alfred;
 pub mod config;
 pub mod fetch;
 pub mod frontmatter;
