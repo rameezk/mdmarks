@@ -73,8 +73,9 @@ Binary: `mdmarks`. Read commands (`list`, `search`) accept `--json`.
 | `add <url>` | Fetch the page title (fall back to the url on failure), write a new Bookmark. On a normalized-url dedup hit, report the existing Bookmark and write nothing. |
 | `list` | List all Bookmarks, sorted by `added` descending. `--json` for machine output. |
 | `search <query>` | Fuzzy search (see below). `--json` for machine output. `--space <name>` filters by Space. |
-| `open <selector>` | Launch a Bookmark's url in its resolved Space (§4). `--space <name>` overrides. |
-| `rm <selector>` | Delete a Bookmark file. |
+| `open <url>` | Launch the Bookmark whose `url` matches **exactly** (verbatim string equality), in its resolved Space (§4). `--space <name>` overrides. The machine ABI the Alfred workflow (§7) calls. |
+| `go <query>` | Fuzzy-find a Bookmark and launch it - the human terminal path (see below). `--space <name>` overrides. `--first`/`-1` launches the top-ranked match. |
+| `rm <url>` | Delete the Bookmark whose `url` matches exactly. |
 | `import <file.html>` | Ingest an exported Netscape bookmark HTML file (§6). |
 
 ### search semantics (from #4)
@@ -97,6 +98,17 @@ Each record carries the frontmatter fields under their frontmatter-schema names;
 - `added` - RFC 3339 string or `null` when unset.
 - `description` - string or `null` when unset.
 - `space` - string or `null` when unset.
+
+### `go` semantics
+
+`go` is the human-driven find-and-launch command; `open` remains the exact-url machine ABI (ADR-0005).
+
+- **Matching**: reuses the `search` ranking above verbatim - same fuzzy subsequence, same fields (`title`, `tags`, `url`), same field multipliers and tie-break. `--space <name>` filters the candidate set exactly as it does for `search`.
+- **Ambiguity rule**: exactly one match launches it. Zero or more than one launches nothing and prints the candidates for the user to narrow. No score thresholds.
+- **`--first` / `-1`**: launch the top-ranked match of a **non-empty** query. An empty (or whitespace-only) query with `--first` is an error - `--first` is "feeling lucky about this query", never an arbitrary launch. `--first` with zero matches is still no-match.
+- **Launch**: identical to `open` - the resolved Space's browser/profile (§4), the stored url launched **verbatim**.
+- **No `--json`**: `go` is an action, not a query. Its stdout on launch is the same two-line `Opening "<title>" / <url>` as `open`.
+- **Contract**: launch exits `0`. No match prints to **stderr** and exits `1`. Ambiguous (including the bare empty-query listing) prints candidates to **stderr** and exits `2`. Candidate lines reuse the `search` human line format, so `go` and `search` render matches identically.
 
 ### Performance requirement (from #3)
 
