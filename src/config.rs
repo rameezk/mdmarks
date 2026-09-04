@@ -10,6 +10,8 @@ pub struct SpaceConfig {
     pub browser: String,
     #[serde(default)]
     pub profile: Option<String>,
+    #[serde(default)]
+    pub chromium_support_dir: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -102,6 +104,10 @@ fn expand_tilde(raw: &str) -> Result<PathBuf, ConfigError> {
     } else {
         Ok(PathBuf::from(raw))
     }
+}
+
+pub fn app_support_dir() -> Result<PathBuf, ConfigError> {
+    Ok(home_dir()?.join("Library/Application Support"))
 }
 
 fn home_dir() -> Result<PathBuf, ConfigError> {

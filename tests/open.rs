@@ -64,6 +64,16 @@ impl Harness {
         std::fs::write(dir.join("config.toml"), toml).unwrap();
     }
 
+    fn write_local_state(&self, support_dir: &str, contents: &str) {
+        let dir = self
+            .home
+            .path()
+            .join("Library/Application Support")
+            .join(support_dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("Local State"), contents).unwrap();
+    }
+
     fn launched(&self) -> Vec<String> {
         match std::fs::read_to_string(&self.log) {
             Ok(s) => s.lines().map(str::to_string).collect(),
@@ -232,12 +242,91 @@ fn open_flag_space_absent_from_config_errors_and_launches_nothing() {
     assert!(h.launched().is_empty());
 }
 
+const LOCAL_STATE: &str =
+    r#"{"profile":{"info_cache":{"Default":{"name":"Personal"},"Profile 1":{"name":"Work"}}}}"#;
+
 #[test]
-fn open_profiled_space_errors_and_launches_nothing() {
+fn open_chrome_profile_launches_profile_directory_argv() {
+    let h = harness();
+    let url = "https://work.example.com/x?utm_source=news#frag";
+    h.seed("x.md", url, "X", "work");
+    h.write_config("[spaces.work]\nbrowser = \"Google Chrome\"\nprofile = \"Work\"\n");
+    h.write_local_state("Google/Chrome", LOCAL_STATE);
+
+    h.mdmarks().args(["open", url]).assert().success();
+
+    assert_eq!(
+        h.launched(),
+        vec![
+            "-na".to_string(),
+            "Google Chrome".to_string(),
+            "--args".to_string(),
+            "--profile-directory=Profile 1".to_string(),
+            url.to_string(),
+        ]
+    );
+}
+
+#[test]
+fn open_chromium_fork_profile_uses_configured_support_dir() {
+    let h = harness();
+    let url = "https://example.com/x";
+    h.seed("x.md", url, "X", "work");
+    h.write_config(
+        "[spaces.work]\nbrowser = \"Helium\"\nprofile = \"Work\"\nchromium_support_dir = \"net.imput.helium\"\n",
+    );
+    h.write_local_state("net.imput.helium", LOCAL_STATE);
+
+    h.mdmarks().args(["open", url]).assert().success();
+
+    assert_eq!(
+        h.launched(),
+        vec![
+            "-na".to_string(),
+            "Helium".to_string(),
+            "--args".to_string(),
+            "--profile-directory=Profile 1".to_string(),
+            url.to_string(),
+        ]
+    );
+}
+
+#[test]
+fn open_profile_absent_from_local_state_errors_and_launches_nothing() {
+    let h = harness();
+    let url = "https://example.com/x";
+    h.seed("x.md", url, "X", "work");
+    h.write_config("[spaces.work]\nbrowser = \"Google Chrome\"\nprofile = \"Ghost\"\n");
+    h.write_local_state("Google/Chrome", LOCAL_STATE);
+
+    h.mdmarks()
+        .args(["open", url])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("Ghost"));
+
+    assert!(h.launched().is_empty());
+}
+
+#[test]
+fn open_profile_with_absent_local_state_errors_and_launches_nothing() {
     let h = harness();
     let url = "https://example.com/x";
     h.seed("x.md", url, "X", "work");
     h.write_config("[spaces.work]\nbrowser = \"Google Chrome\"\nprofile = \"Work\"\n");
+
+    h.mdmarks().args(["open", url]).assert().failure();
+
+    assert!(h.launched().is_empty());
+}
+
+#[test]
+fn open_profile_with_malformed_local_state_errors_and_launches_nothing() {
+    let h = harness();
+    let url = "https://example.com/x";
+    h.seed("x.md", url, "X", "work");
+    h.write_config("[spaces.work]\nbrowser = \"Google Chrome\"\nprofile = \"Work\"\n");
+    h.write_local_state("Google/Chrome", "{ not valid json");
 
     h.mdmarks().args(["open", url]).assert().failure();
 
