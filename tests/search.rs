@@ -293,6 +293,170 @@ fn json_and_human_cover_the_same_ranked_set_in_the_same_order() {
     assert_eq!(human_urls, json_urls);
 }
 
+fn alfred_feed(assert: &assert_cmd::assert::Assert) -> serde_json::Value {
+    let stdout = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
+    serde_json::from_str(&stdout).unwrap()
+}
+
+#[test]
+fn alfred_emits_items_envelope_in_the_same_order_as_json() {
+    let store = TempDir::new().unwrap();
+    seed(
+        &store,
+        "rustbook.md",
+        &bookmark(
+            "https://doc.rust-lang.org/book/",
+            Some("The Rust Programming Language"),
+            Some("2026-01-01T00:00:00+00:00"),
+            &["rust", "lang"],
+            "",
+        ),
+    );
+    seed(
+        &store,
+        "trust.md",
+        &bookmark(
+            "https://example.com/trust",
+            Some("Building Trust"),
+            Some("2026-02-01T00:00:00+00:00"),
+            &["management"],
+            "",
+        ),
+    );
+
+    let alfred = mdmarks(&store)
+        .args(["search", "rust", "--format", "alfred"])
+        .assert()
+        .success();
+    let feed = alfred_feed(&alfred);
+    let alfred_urls: Vec<String> = feed["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| i["arg"].as_str().unwrap().to_string())
+        .collect();
+
+    let json = mdmarks(&store)
+        .args(["search", "rust", "--json"])
+        .assert()
+        .success();
+    let records: serde_json::Value =
+        serde_json::from_str(&String::from_utf8(json.get_output().stdout.clone()).unwrap())
+            .unwrap();
+    let json_urls: Vec<String> = records
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| r["url"].as_str().unwrap().to_string())
+        .collect();
+
+    assert_eq!(alfred_urls, json_urls);
+}
+
+#[test]
+fn alfred_no_match_emits_empty_items_and_exits_zero() {
+    let store = TempDir::new().unwrap();
+    seed(
+        &store,
+        "one.md",
+        &bookmark(
+            "https://a",
+            Some("Alpha"),
+            Some("2026-01-01T00:00:00+00:00"),
+            &[],
+            "",
+        ),
+    );
+
+    let assert = mdmarks(&store)
+        .args(["search", "qqzzxx", "--format", "alfred"])
+        .assert()
+        .success();
+    assert_eq!(alfred_feed(&assert), serde_json::json!({ "items": [] }));
+}
+
+#[test]
+fn alfred_maps_each_bookmark_to_a_script_filter_item() {
+    let store = TempDir::new().unwrap();
+    seed(
+        &store,
+        "untitled.md",
+        "---\nurl: https://example.com/only-url\nadded: 2026-01-01T00:00:00+00:00\nspace: work\n---\n\n",
+    );
+
+    let assert = mdmarks(&store)
+        .args(["search", "", "--format", "alfred"])
+        .assert()
+        .success();
+    let item = &alfred_feed(&assert)["items"][0];
+
+    assert_eq!(item["title"], "https://example.com/only-url");
+    assert_eq!(item["subtitle"], "work · https://example.com/only-url");
+    assert_eq!(item["arg"], "https://example.com/only-url");
+    assert_eq!(item["valid"], true);
+    assert_eq!(item["action"]["url"], "https://example.com/only-url");
+    assert_eq!(item["mods"]["cmd"]["arg"], "https://example.com/only-url");
+    assert_eq!(item["mods"]["cmd"]["subtitle"], "Copy URL");
+    assert!(item.as_object().unwrap().get("uid").is_none());
+}
+
+#[test]
+fn alfred_substitutes_default_space_for_an_unset_space() {
+    let store = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    let config_dir = home.path().join(".config/mdmarks");
+    std::fs::create_dir_all(&config_dir).unwrap();
+    std::fs::write(
+        config_dir.join("config.toml"),
+        "default_space = \"personal\"\n",
+    )
+    .unwrap();
+    seed(
+        &store,
+        "spaceless.md",
+        &bookmark(
+            "https://example.com/z",
+            Some("Zed"),
+            Some("2026-01-01T00:00:00+00:00"),
+            &[],
+            "",
+        ),
+    );
+
+    let assert = mdmarks(&store)
+        .env("HOME", home.path())
+        .args(["search", "zed", "--format", "alfred"])
+        .assert()
+        .success();
+    assert_eq!(
+        alfred_feed(&assert)["items"][0]["subtitle"],
+        "personal · https://example.com/z"
+    );
+}
+
+#[test]
+fn alfred_respects_the_space_filter() {
+    let store = TempDir::new().unwrap();
+    seed(
+        &store,
+        "work.md",
+        "---\nurl: https://work.example.com\ntitle: Work\nadded: 2026-01-01T00:00:00+00:00\nspace: work\n---\n\n",
+    );
+    seed(
+        &store,
+        "home.md",
+        "---\nurl: https://home.example.com\ntitle: Home\nadded: 2026-02-01T00:00:00+00:00\nspace: home\n---\n\n",
+    );
+
+    let assert = mdmarks(&store)
+        .args(["search", "", "--format", "alfred", "--space", "work"])
+        .assert()
+        .success();
+    let items = alfred_feed(&assert)["items"].as_array().unwrap().clone();
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0]["arg"], "https://work.example.com");
+}
+
 #[test]
 fn tags_are_matched() {
     let store = TempDir::new().unwrap();
