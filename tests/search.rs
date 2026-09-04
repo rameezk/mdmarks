@@ -457,6 +457,146 @@ fn alfred_respects_the_space_filter() {
     assert_eq!(items[0]["arg"], "https://work.example.com");
 }
 
+fn spaces_config() -> TempDir {
+    let home = TempDir::new().unwrap();
+    let config_dir = home.path().join(".config/mdmarks");
+    std::fs::create_dir_all(&config_dir).unwrap();
+    std::fs::write(
+        config_dir.join("config.toml"),
+        "[spaces.work]\nbrowser = \"Google Chrome\"\n\n[spaces.home]\nbrowser = \"Firefox\"\n",
+    )
+    .unwrap();
+    home
+}
+
+fn spaced_corpus(store: &TempDir) {
+    seed(
+        store,
+        "work-rust.md",
+        "---\nurl: https://work.example.com/rust\ntitle: Rust at Work\nadded: 2026-01-01T00:00:00+00:00\nspace: work\n---\n\n",
+    );
+    seed(
+        store,
+        "work-kube.md",
+        "---\nurl: https://work.example.com/kube\ntitle: Kubernetes Guide\nadded: 2026-03-01T00:00:00+00:00\nspace: work\n---\n\n",
+    );
+    seed(
+        store,
+        "home-rust.md",
+        "---\nurl: https://home.example.com/rust\ntitle: Rust at Home\nadded: 2026-02-01T00:00:00+00:00\nspace: home\n---\n\n",
+    );
+}
+
+fn args_of(feed: &serde_json::Value) -> Vec<String> {
+    feed["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| i["arg"].as_str().unwrap().to_string())
+        .collect()
+}
+
+#[test]
+fn alfred_space_prefix_scopes_and_fuzzy_matches_the_remainder() {
+    let store = TempDir::new().unwrap();
+    let home = spaces_config();
+    spaced_corpus(&store);
+
+    let assert = mdmarks(&store)
+        .env("HOME", home.path())
+        .args(["search", "work: rust", "--format", "alfred"])
+        .assert()
+        .success();
+
+    assert_eq!(
+        args_of(&alfred_feed(&assert)),
+        vec!["https://work.example.com/rust"]
+    );
+}
+
+#[test]
+fn alfred_bare_space_prefix_returns_the_whole_space_feed_newest_first() {
+    let store = TempDir::new().unwrap();
+    let home = spaces_config();
+    spaced_corpus(&store);
+
+    let assert = mdmarks(&store)
+        .env("HOME", home.path())
+        .args(["search", "work:", "--format", "alfred"])
+        .assert()
+        .success();
+
+    assert_eq!(
+        args_of(&alfred_feed(&assert)),
+        vec![
+            "https://work.example.com/kube",
+            "https://work.example.com/rust"
+        ]
+    );
+}
+
+#[test]
+fn alfred_unknown_token_prefix_stays_the_query() {
+    let store = TempDir::new().unwrap();
+    let home = spaces_config();
+    seed(
+        &store,
+        "colon.md",
+        "---\nurl: http://example.com/rust\ntitle: Colon URL\nadded: 2026-01-01T00:00:00+00:00\nspace: work\n---\n\n",
+    );
+
+    let assert = mdmarks(&store)
+        .env("HOME", home.path())
+        .args(["search", "http://example.com", "--format", "alfred"])
+        .assert()
+        .success();
+
+    assert_eq!(
+        args_of(&alfred_feed(&assert)),
+        vec!["http://example.com/rust"]
+    );
+}
+
+#[test]
+fn alfred_space_flag_takes_precedence_over_the_query_prefix() {
+    let store = TempDir::new().unwrap();
+    let home = spaces_config();
+    spaced_corpus(&store);
+
+    let assert = mdmarks(&store)
+        .env("HOME", home.path())
+        .args(["search", "home:", "--format", "alfred", "--space", "work"])
+        .assert()
+        .success();
+
+    assert_eq!(
+        args_of(&alfred_feed(&assert)),
+        Vec::<String>::new(),
+        "flag scopes to work; the literal `home:` query matches nothing there"
+    );
+}
+
+#[test]
+fn space_prefix_is_not_interpreted_without_alfred_format() {
+    let store = TempDir::new().unwrap();
+    let home = spaces_config();
+    spaced_corpus(&store);
+
+    let assert = mdmarks(&store)
+        .env("HOME", home.path())
+        .args(["search", "work:", "--json"])
+        .assert()
+        .success();
+    let stdout = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
+    let records: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+
+    assert_eq!(
+        records.as_array().unwrap().len(),
+        0,
+        "plain --json treats `work:` as a literal fuzzy query, matching nothing"
+    );
+}
+
 #[test]
 fn tags_are_matched() {
     let store = TempDir::new().unwrap();

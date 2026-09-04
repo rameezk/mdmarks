@@ -34,6 +34,27 @@ struct Modifier<'a> {
     subtitle: &'a str,
 }
 
+pub struct AlfredQuery<'a> {
+    pub space: Option<&'a str>,
+    pub query: &'a str,
+}
+
+pub fn parse_query<'a>(raw: &'a str, is_space: impl Fn(&str) -> bool) -> AlfredQuery<'a> {
+    if let Some((token, rest)) = raw.split_once(':') {
+        let token = token.trim();
+        if is_space(token) {
+            return AlfredQuery {
+                space: Some(token),
+                query: rest.trim(),
+            };
+        }
+    }
+    AlfredQuery {
+        space: None,
+        query: raw,
+    }
+}
+
 pub fn render(bookmarks: &[&StoredBookmark], default_space: Option<&str>) -> String {
     let items: Vec<Item> = bookmarks
         .iter()
@@ -86,6 +107,38 @@ mod tests {
             description: None,
             space: space.map(str::to_string),
         }
+    }
+
+    fn is_configured(name: &str) -> bool {
+        matches!(name, "work" | "home")
+    }
+
+    #[test]
+    fn prefix_naming_a_configured_space_scopes_and_strips() {
+        let parsed = parse_query("work: rust", is_configured);
+        assert_eq!(parsed.space, Some("work"));
+        assert_eq!(parsed.query, "rust");
+    }
+
+    #[test]
+    fn bare_prefix_scopes_with_an_empty_query() {
+        let parsed = parse_query("work:", is_configured);
+        assert_eq!(parsed.space, Some("work"));
+        assert_eq!(parsed.query, "");
+    }
+
+    #[test]
+    fn prefix_naming_an_unknown_token_stays_the_query() {
+        let parsed = parse_query("http://example.com", is_configured);
+        assert_eq!(parsed.space, None);
+        assert_eq!(parsed.query, "http://example.com");
+    }
+
+    #[test]
+    fn no_colon_stays_the_query() {
+        let parsed = parse_query("rust lang", is_configured);
+        assert_eq!(parsed.space, None);
+        assert_eq!(parsed.query, "rust lang");
     }
 
     #[test]

@@ -125,6 +125,7 @@ Search is scan-on-demand with **no index** (ADR-0001). The scan **must paralleli
 ## 7. Alfred workflow
 
 - A **Script Filter** feeds `mdmarks search "$query" --json` and renders the results; the empty-query feed lists everything (§5).
+- Under `--format alfred`, a leading `<token>:` in the query scopes the search to Space `<token>` **only when `<token>` is a configured Space**; otherwise the whole string stays the fuzzy query (so words and colons in urls are never swallowed). The remainder after the prefix is the query, and a bare `<space>:` returns that Space's full feed. An explicit `--space` flag is the coarse filter and takes precedence: when it is present the prefix is not interpreted. Parsing lives in the CLI, not the workflow script. The prefix is inert under `--json`/human output.
 - **Enter** opens the selected Bookmark in its resolved Space (§4).
 - **Modifier keys** override the Space from the configured list at open time.
 - Exact keyword, the modifier-to-Space binding, and `.alfredworkflow` bundling/distribution are deferred (shape decided, config not yet pinned).

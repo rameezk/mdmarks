@@ -101,17 +101,31 @@ fn run(cli: Cli) -> Result<(), String> {
         } => {
             let config = Config::load().map_err(|e| e.to_string())?;
             let store = Store::new(&config.store);
-            let bookmarks =
-                bookmarks_in_space(&store, space.as_deref()).map_err(|e| e.to_string())?;
-            let results = rank(&bookmarks, &query);
             match format {
                 Some(SearchFormat::Alfred) => {
+                    let parsed = match space.as_deref() {
+                        Some(flag) => alfred::AlfredQuery {
+                            space: Some(flag),
+                            query: &query,
+                        },
+                        None => {
+                            alfred::parse_query(&query, |token| config.spaces.contains_key(token))
+                        }
+                    };
+                    let bookmarks =
+                        bookmarks_in_space(&store, parsed.space).map_err(|e| e.to_string())?;
+                    let results = rank(&bookmarks, parsed.query);
                     println!(
                         "{}",
                         alfred::render(&results, config.default_space.as_deref())
                     );
                 }
-                None => render(&results, as_json),
+                None => {
+                    let bookmarks =
+                        bookmarks_in_space(&store, space.as_deref()).map_err(|e| e.to_string())?;
+                    let results = rank(&bookmarks, &query);
+                    render(&results, as_json);
+                }
             }
             Ok(())
         }
