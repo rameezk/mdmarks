@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 use std::process::Command;
 
+use plist::Value;
 use tempfile::TempDir;
 
 fn script_path() -> PathBuf {
@@ -112,4 +113,88 @@ fn binary_defaults_to_mdmarks_on_path_when_unset() {
     let actual = via_script(&home, &store, "rust", &path, None);
 
     assert_eq!(actual, expected);
+}
+
+fn info_plist() -> Value {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("alfred/workflow/info.plist");
+    Value::from_file(path).expect("info.plist parses as a plist")
+}
+
+fn objects(plist: &Value) -> &Vec<Value> {
+    plist
+        .as_dictionary()
+        .unwrap()
+        .get("objects")
+        .and_then(Value::as_array)
+        .expect("objects array")
+}
+
+fn object_of_type<'a>(plist: &'a Value, kind: &str) -> &'a plist::Dictionary {
+    objects(plist)
+        .iter()
+        .map(|o| o.as_dictionary().unwrap())
+        .find(|o| o.get("type").and_then(Value::as_string) == Some(kind))
+        .unwrap_or_else(|| panic!("no object of type {kind}"))
+}
+
+fn uid(obj: &plist::Dictionary) -> &str {
+    obj.get("uid").and_then(Value::as_string).unwrap()
+}
+
+fn config(obj: &plist::Dictionary) -> &plist::Dictionary {
+    obj.get("config").and_then(Value::as_dictionary).unwrap()
+}
+
+#[test]
+fn info_plist_ships_a_wired_node_graph_not_an_empty_stub() {
+    let plist = info_plist();
+
+    assert!(
+        !objects(&plist).is_empty(),
+        "objects must not regress to an empty stub"
+    );
+
+    let filter = object_of_type(&plist, "alfred.workflow.input.scriptfilter");
+    let filter_cfg = config(filter);
+    assert_eq!(
+        filter_cfg.get("keyword").and_then(Value::as_string),
+        Some("bm")
+    );
+    assert_eq!(
+        filter_cfg.get("scriptfile").and_then(Value::as_string),
+        Some("./script_filter.sh")
+    );
+
+    let action = object_of_type(&plist, "alfred.workflow.action.script");
+    let action_cfg = config(action);
+    let script = action_cfg.get("script").and_then(Value::as_string).unwrap();
+    assert!(
+        script.contains("open \"$1\""),
+        "the action must invoke `mdmarks open`: {script}"
+    );
+    assert_eq!(
+        action_cfg.get("scriptargtype").and_then(Value::as_signed_integer),
+        Some(1),
+        "the action reads $1, so Alfred must pass input as argv (scriptargtype 1), not {{query}} (0)"
+    );
+
+    let connections = plist
+        .as_dictionary()
+        .unwrap()
+        .get("connections")
+        .and_then(Value::as_dictionary)
+        .expect("connections dict");
+    let from_filter = connections
+        .get(uid(filter))
+        .and_then(Value::as_array)
+        .expect("the Script Filter must have outgoing connections");
+    let wired_to_action = from_filter.iter().any(|c| {
+        let c = c.as_dictionary().unwrap();
+        c.get("destinationuid").and_then(Value::as_string) == Some(uid(action))
+            && c.get("modifiers").and_then(Value::as_signed_integer) == Some(0)
+    });
+    assert!(
+        wired_to_action,
+        "Enter (modifiers 0) on the Script Filter must run the open action"
+    );
 }

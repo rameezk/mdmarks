@@ -15,23 +15,11 @@ struct Item<'a> {
     arg: &'a str,
     valid: bool,
     action: Action<'a>,
-    mods: Mods<'a>,
 }
 
 #[derive(Serialize)]
 struct Action<'a> {
     url: &'a str,
-}
-
-#[derive(Serialize)]
-struct Mods<'a> {
-    cmd: Modifier<'a>,
-}
-
-#[derive(Serialize)]
-struct Modifier<'a> {
-    arg: &'a str,
-    subtitle: &'a str,
 }
 
 pub struct AlfredQuery<'a> {
@@ -70,12 +58,6 @@ fn item<'a>(fm: &'a Frontmatter, default_space: Option<&str>) -> Item<'a> {
         arg: &fm.url,
         valid: true,
         action: Action { url: &fm.url },
-        mods: Mods {
-            cmd: Modifier {
-                arg: &fm.url,
-                subtitle: "Copy URL",
-            },
-        },
     }
 }
 
@@ -165,9 +147,9 @@ mod tests {
             item["action"],
             serde_json::json!({ "url": "https://example.com/a?utm=1" })
         );
-        assert_eq!(
-            item["mods"]["cmd"],
-            serde_json::json!({ "arg": "https://example.com/a?utm=1", "subtitle": "Copy URL" })
+        assert!(
+            item.as_object().unwrap().get("mods").is_none(),
+            "no mods so the feed never advertises an unwired modifier action"
         );
         assert!(
             item.as_object().unwrap().get("uid").is_none(),
