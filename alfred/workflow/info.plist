@@ -7,7 +7,21 @@
 	<key>category</key>
 	<string>Tools</string>
 	<key>connections</key>
-	<dict/>
+	<dict>
+		<key>F597CEBB-5450-4E49-B891-615E1A336436</key>
+		<array>
+			<dict>
+				<key>destinationuid</key>
+				<string>090CF59D-85FD-47D9-9AF4-C4C429543810</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+		</array>
+	</dict>
 	<key>createdby</key>
 	<string>Rameez Khan</string>
 	<key>description</key>
@@ -17,11 +31,98 @@
 	<key>name</key>
 	<string>mdmarks</string>
 	<key>objects</key>
-	<array/>
+	<array>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>alfredfiltersresults</key>
+				<false/>
+				<key>alfredfiltersresultsmatchmode</key>
+				<integer>0</integer>
+				<key>argumenttrimmode</key>
+				<integer>0</integer>
+				<key>argumenttype</key>
+				<integer>1</integer>
+				<key>escaping</key>
+				<integer>102</integer>
+				<key>keyword</key>
+				<string>bm</string>
+				<key>queuedelaycustom</key>
+				<integer>3</integer>
+				<key>queuedelayimmediatelyinitially</key>
+				<true/>
+				<key>queuedelaymode</key>
+				<integer>0</integer>
+				<key>queuemode</key>
+				<integer>1</integer>
+				<key>runningsubtext</key>
+				<string></string>
+				<key>script</key>
+				<string></string>
+				<key>scriptargtype</key>
+				<integer>1</integer>
+				<key>scriptfile</key>
+				<string>./script_filter.sh</string>
+				<key>subtext</key>
+				<string>Fuzzy-find a Bookmark, or scope with &lt;space&gt;:</string>
+				<key>title</key>
+				<string>Search Bookmarks</string>
+				<key>type</key>
+				<integer>8</integer>
+				<key>withspace</key>
+				<true/>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.input.scriptfilter</string>
+			<key>uid</key>
+			<string>F597CEBB-5450-4E49-B891-615E1A336436</string>
+			<key>version</key>
+			<integer>3</integer>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>concurrently</key>
+				<false/>
+				<key>escaping</key>
+				<integer>102</integer>
+				<key>script</key>
+				<string>export PATH="${HOME:-}/.nix-profile/bin:/etc/profiles/per-user/${USER:-}/bin:/run/current-system/sw/bin:${PATH:-}"
+exec "${MDMARKS_BIN:-mdmarks}" open "$1"</string>
+				<key>scriptargtype</key>
+				<integer>1</integer>
+				<key>scriptfile</key>
+				<string></string>
+				<key>type</key>
+				<integer>0</integer>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.action.script</string>
+			<key>uid</key>
+			<string>090CF59D-85FD-47D9-9AF4-C4C429543810</string>
+			<key>version</key>
+			<integer>2</integer>
+		</dict>
+	</array>
 	<key>readme</key>
-	<string>Assemble the node graph in the Alfred GUI following alfred/README.md. Keyword `bm` -> Script Filter (External Script ./script_filter.sh) -> Enter runs `mdmarks open "$1"`, ⌘↵ copies to clipboard, right-arrow uses each item's action.url. Set PATH and MDMARKS_BIN in the Environment Variables pane.</string>
+	<string>Fuzzy-find and open mdmarks Bookmarks. Keyword `bm` runs a Script Filter over `mdmarks search --format alfred`; Enter runs `mdmarks open` on the selected Bookmark's verbatim URL; right-arrow (→) hands the URL to Alfred's Universal Actions (Copy URL, and the rest). The graph is authored directly in this info.plist - do not re-export from the Alfred GUI, which would drop the committed structure. Requires the `mdmarks` binary; the scripts prepend the standard Nix profile directories to PATH, or set MDMARKS_BIN in the configuration sheet to an absolute path.</string>
 	<key>uidata</key>
-	<dict/>
+	<dict>
+		<key>090CF59D-85FD-47D9-9AF4-C4C429543810</key>
+		<dict>
+			<key>xpos</key>
+			<real>420</real>
+			<key>ypos</key>
+			<real>120</real>
+		</dict>
+		<key>F597CEBB-5450-4E49-B891-615E1A336436</key>
+		<dict>
+			<key>xpos</key>
+			<real>120</real>
+			<key>ypos</key>
+			<real>120</real>
+		</dict>
+	</dict>
 	<key>userconfigurationconfig</key>
 	<array>
 		<dict>

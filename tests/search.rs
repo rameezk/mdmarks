@@ -395,8 +395,7 @@ fn alfred_maps_each_bookmark_to_a_script_filter_item() {
     assert_eq!(item["arg"], "https://example.com/only-url");
     assert_eq!(item["valid"], true);
     assert_eq!(item["action"]["url"], "https://example.com/only-url");
-    assert_eq!(item["mods"]["cmd"]["arg"], "https://example.com/only-url");
-    assert_eq!(item["mods"]["cmd"]["subtitle"], "Copy URL");
+    assert!(item.as_object().unwrap().get("mods").is_none());
     assert!(item.as_object().unwrap().get("uid").is_none());
 }
 
