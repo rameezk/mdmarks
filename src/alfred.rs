@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use serde::Serialize;
 
 use crate::frontmatter::Frontmatter;
@@ -9,17 +11,39 @@ struct Feed<'a> {
 }
 
 #[derive(Serialize)]
-struct Item<'a> {
-    title: &'a str,
+pub struct Item<'a> {
+    title: Cow<'a, str>,
     subtitle: String,
-    arg: &'a str,
+    arg: Cow<'a, str>,
     valid: bool,
-    action: Action<'a>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    action: Option<Action<'a>>,
 }
 
 #[derive(Serialize)]
 struct Action<'a> {
-    url: &'a str,
+    url: Cow<'a, str>,
+}
+
+impl<'a> Item<'a> {
+    pub fn new(
+        title: impl Into<Cow<'a, str>>,
+        subtitle: String,
+        arg: impl Into<Cow<'a, str>>,
+        action_url: Option<Cow<'a, str>>,
+    ) -> Self {
+        Item {
+            title: title.into(),
+            subtitle,
+            arg: arg.into(),
+            valid: true,
+            action: action_url.map(|url| Action { url }),
+        }
+    }
+}
+
+pub fn feed(items: Vec<Item>) -> String {
+    serde_json::to_string_pretty(&Feed { items }).expect("alfred feed is always serializable")
 }
 
 pub struct AlfredQuery<'a> {
@@ -44,21 +68,21 @@ pub fn parse_query<'a>(raw: &'a str, is_space: impl Fn(&str) -> bool) -> AlfredQ
 }
 
 pub fn render(bookmarks: &[&StoredBookmark], default_space: Option<&str>) -> String {
-    let items: Vec<Item> = bookmarks
-        .iter()
-        .map(|b| item(&b.frontmatter, default_space))
-        .collect();
-    serde_json::to_string_pretty(&Feed { items }).expect("alfred feed is always serializable")
+    feed(
+        bookmarks
+            .iter()
+            .map(|b| item(&b.frontmatter, default_space))
+            .collect(),
+    )
 }
 
 fn item<'a>(fm: &'a Frontmatter, default_space: Option<&str>) -> Item<'a> {
-    Item {
-        title: fm.display_title(),
-        subtitle: subtitle(fm, default_space),
-        arg: &fm.url,
-        valid: true,
-        action: Action { url: &fm.url },
-    }
+    Item::new(
+        fm.display_title(),
+        subtitle(fm, default_space),
+        fm.url.as_str(),
+        Some(Cow::Borrowed(fm.url.as_str())),
+    )
 }
 
 fn subtitle(fm: &Frontmatter, default_space: Option<&str>) -> String {
