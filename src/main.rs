@@ -31,6 +31,8 @@ enum Command {
         url: String,
         #[arg(long)]
         title: Option<String>,
+        #[arg(long)]
+        space: Option<String>,
     },
     List {
         #[arg(long = "json")]
@@ -78,10 +80,11 @@ fn main() -> ExitCode {
 
 fn run(cli: Cli) -> Result<(), String> {
     match cli.command {
-        Command::Add { url, title } => {
+        Command::Add { url, title, space } => {
             let store_path = resolve_store_path().map_err(|e| e.to_string())?;
             let store = Store::new(store_path);
-            let outcome = add(&store, &url, title.as_deref()).map_err(|e| e.to_string())?;
+            let outcome =
+                add(&store, &url, title.as_deref(), space.as_deref()).map_err(|e| e.to_string())?;
             report(&outcome);
             Ok(())
         }
@@ -204,4 +207,9 @@ fn report(outcome: &AddOutcome) {
     println!("{label} \"{}\"", bookmark.title);
     println!("  {}", bookmark.url);
     println!("  {}", bookmark.path.display());
+    if let AddOutcome::Created(b) = outcome {
+        if let Some(space) = &b.space {
+            println!("  space: {space}");
+        }
+    }
 }

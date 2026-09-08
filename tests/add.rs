@@ -1,4 +1,5 @@
 use assert_cmd::Command;
+use predicates::prelude::PredicateBooleanExt;
 use tempfile::TempDir;
 
 fn mdmarks(store: &TempDir) -> Command {
@@ -230,6 +231,79 @@ fn non_http_scheme_is_rejected() {
         .assert()
         .failure();
     assert_eq!(md_files(&store).len(), 0);
+}
+
+#[test]
+fn space_flag_is_written_to_frontmatter() {
+    let store = TempDir::new().unwrap();
+    mdmarks(&store)
+        .args(["add", "https://example.com/a", "--title", "A", "--space", "work"])
+        .assert()
+        .success();
+    let content = read_only_file(&store);
+    assert!(content.contains("space: work"), "{content}");
+}
+
+#[test]
+fn space_flag_is_echoed_on_create() {
+    let store = TempDir::new().unwrap();
+    mdmarks(&store)
+        .args(["add", "https://example.com/a", "--title", "A", "--space", "work"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("space: work"));
+}
+
+#[test]
+fn no_space_flag_writes_no_space_field() {
+    let store = TempDir::new().unwrap();
+    mdmarks(&store)
+        .args(["add", "https://example.com/a", "--title", "A"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("space:").not());
+    let content = read_only_file(&store);
+    assert!(!content.contains("space"), "{content}");
+}
+
+#[test]
+fn blank_space_collapses_to_absent() {
+    let store = TempDir::new().unwrap();
+    mdmarks(&store)
+        .args(["add", "https://example.com/a", "--title", "A", "--space", "   "])
+        .assert()
+        .success();
+    let content = read_only_file(&store);
+    assert!(!content.contains("space"), "{content}");
+}
+
+#[test]
+fn space_is_trimmed() {
+    let store = TempDir::new().unwrap();
+    mdmarks(&store)
+        .args(["add", "https://example.com/a", "--title", "A", "--space", "  work  "])
+        .assert()
+        .success();
+    let content = read_only_file(&store);
+    assert!(content.contains("space: work"), "{content}");
+}
+
+#[test]
+fn re_adding_existing_url_with_space_does_not_mutate() {
+    let store = TempDir::new().unwrap();
+    let url = "https://example.com/page";
+    mdmarks(&store)
+        .args(["add", url, "--title", "Page"])
+        .assert()
+        .success();
+    mdmarks(&store)
+        .args(["add", url, "--title", "Page", "--space", "work"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("Already saved"));
+    assert_eq!(md_files(&store).len(), 1);
+    let content = read_only_file(&store);
+    assert!(!content.contains("space"), "space not applied on match: {content}");
 }
 
 #[test]
