@@ -1,5 +1,4 @@
 use assert_cmd::Command;
-use predicates::prelude::PredicateBooleanExt;
 use tempfile::TempDir;
 
 fn mdmarks(store: &TempDir) -> Command {
@@ -141,7 +140,7 @@ fn re_adding_exact_url_is_a_dedup_noop() {
     mdmarks(&store)
         .args(["add", url, "--title", "Page"])
         .assert()
-        .success()
+        .code(3)
         .stdout(predicates::str::contains("Already saved"));
     assert_eq!(md_files(&store).len(), 1);
 }
@@ -167,7 +166,7 @@ fn near_duplicate_variants_all_dedup() {
         mdmarks(&store)
             .args(["add", v, "--title", "Variant"])
             .assert()
-            .success()
+            .code(3)
             .stdout(predicates::str::contains("Already saved"));
     }
     assert_eq!(md_files(&store).len(), 1);
@@ -194,7 +193,7 @@ fn fragment_difference_creates_second_bookmark() {
         ])
         .assert()
         .success()
-        .stdout(predicates::str::contains("Added"));
+        .stdout(predicates::str::contains("Saved"));
     assert_eq!(md_files(&store).len(), 2);
 }
 
@@ -209,7 +208,7 @@ fn path_case_difference_creates_second_bookmark() {
         .args(["add", "https://example.com/path", "--title", "Lower"])
         .assert()
         .success()
-        .stdout(predicates::str::contains("Added"));
+        .stdout(predicates::str::contains("Saved"));
     assert_eq!(md_files(&store).len(), 2);
 }
 
@@ -245,23 +244,12 @@ fn space_flag_is_written_to_frontmatter() {
 }
 
 #[test]
-fn space_flag_is_echoed_on_create() {
-    let store = TempDir::new().unwrap();
-    mdmarks(&store)
-        .args(["add", "https://example.com/a", "--title", "A", "--space", "work"])
-        .assert()
-        .success()
-        .stdout(predicates::str::contains("space: work"));
-}
-
-#[test]
 fn no_space_flag_writes_no_space_field() {
     let store = TempDir::new().unwrap();
     mdmarks(&store)
         .args(["add", "https://example.com/a", "--title", "A"])
         .assert()
-        .success()
-        .stdout(predicates::str::contains("space:").not());
+        .success();
     let content = read_only_file(&store);
     assert!(!content.contains("space"), "{content}");
 }
@@ -299,7 +287,7 @@ fn re_adding_existing_url_with_space_does_not_mutate() {
     mdmarks(&store)
         .args(["add", url, "--title", "Page", "--space", "work"])
         .assert()
-        .success()
+        .code(3)
         .stdout(predicates::str::contains("Already saved"));
     assert_eq!(md_files(&store).len(), 1);
     let content = read_only_file(&store);
@@ -307,15 +295,37 @@ fn re_adding_existing_url_with_space_does_not_mutate() {
 }
 
 #[test]
-fn dedup_noop_exits_zero() {
+fn created_prints_single_saved_line_and_exits_zero() {
+    let store = TempDir::new().unwrap();
+    mdmarks(&store)
+        .args(["add", "https://example.com/new", "--title", "Fresh Page"])
+        .assert()
+        .code(0)
+        .stdout("Saved ✓ Fresh Page\n");
+}
+
+#[test]
+fn already_saved_prints_single_line_and_exits_with_distinct_code() {
     let store = TempDir::new().unwrap();
     let url = "https://example.com/z";
     mdmarks(&store)
-        .args(["add", url, "--title", "Z"])
+        .args(["add", url, "--title", "Zed"])
         .assert()
         .success();
     mdmarks(&store)
-        .args(["add", url, "--title", "Z"])
+        .args(["add", url, "--title", "Zed"])
         .assert()
-        .code(0);
+        .code(3)
+        .stdout("Already saved: Zed\n");
+}
+
+#[test]
+fn error_reports_to_stderr_with_nonzero_exit() {
+    let store = TempDir::new().unwrap();
+    mdmarks(&store)
+        .args(["add", "not a url", "--title", "X"])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("error:"))
+        .stdout("");
 }

@@ -55,9 +55,9 @@ pub fn add(
             let title = bookmark.frontmatter.display_title().to_string();
             return Ok(AddOutcome::Matched(BookmarkRef {
                 path: bookmark.path,
-                url: bookmark.frontmatter.url,
                 title,
-                space: None,
+                space: bookmark.frontmatter.space,
+                url: bookmark.frontmatter.url,
             }));
         }
     }
@@ -100,5 +100,26 @@ fn validate_http_url(input: &str) -> Result<(), AddError> {
     match parsed.scheme() {
         "http" | "https" if parsed.host_str().is_some() => Ok(()),
         _ => Err(AddError::InvalidUrl(input.to_string())),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn matched_outcome_reflects_existing_bookmark_space() {
+        let dir = TempDir::new().unwrap();
+        let store = Store::new(dir.path());
+        let url = "https://example.com/page";
+
+        add(&store, url, Some("Page"), Some("work")).unwrap();
+
+        let outcome = add(&store, url, Some("Page"), None).unwrap();
+        match outcome {
+            AddOutcome::Matched(b) => assert_eq!(b.space.as_deref(), Some("work")),
+            AddOutcome::Created(_) => panic!("expected a dedup match, got a fresh create"),
+        }
     }
 }

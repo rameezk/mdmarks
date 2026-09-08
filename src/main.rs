@@ -72,10 +72,12 @@ enum Format {
     Alfred,
 }
 
+const EXIT_ALREADY_SAVED: u8 = 3;
+
 fn main() -> ExitCode {
     let cli = Cli::parse();
     match run(cli) {
-        Ok(()) => ExitCode::SUCCESS,
+        Ok(code) => code,
         Err(message) => {
             eprintln!("error: {message}");
             ExitCode::FAILURE
@@ -83,15 +85,14 @@ fn main() -> ExitCode {
     }
 }
 
-fn run(cli: Cli) -> Result<(), String> {
+fn run(cli: Cli) -> Result<ExitCode, String> {
     match cli.command {
         Command::Add { url, title, space } => {
             let store_path = resolve_store_path().map_err(|e| e.to_string())?;
             let store = Store::new(store_path);
             let outcome =
                 add(&store, &url, title.as_deref(), space.as_deref()).map_err(|e| e.to_string())?;
-            report(&outcome);
-            Ok(())
+            Ok(report(&outcome))
         }
         Command::List { as_json, space } => {
             let store_path = resolve_store_path().map_err(|e| e.to_string())?;
@@ -99,7 +100,7 @@ fn run(cli: Cli) -> Result<(), String> {
             let bookmarks = list(&store, space.as_deref()).map_err(|e| e.to_string())?;
             let results: Vec<&StoredBookmark> = bookmarks.iter().collect();
             render(&results, as_json);
-            Ok(())
+            Ok(ExitCode::SUCCESS)
         }
         Command::Search {
             query,
@@ -135,7 +136,7 @@ fn run(cli: Cli) -> Result<(), String> {
                     render(&results, as_json);
                 }
             }
-            Ok(())
+            Ok(ExitCode::SUCCESS)
         }
         Command::Spaces { format } => {
             let config = Config::load().map_err(|e| e.to_string())?;
@@ -152,7 +153,7 @@ fn run(cli: Cli) -> Result<(), String> {
                     }
                 }
             }
-            Ok(())
+            Ok(ExitCode::SUCCESS)
         }
         Command::Import { file } => {
             let store_path = resolve_store_path().map_err(|e| e.to_string())?;
@@ -177,7 +178,7 @@ fn run(cli: Cli) -> Result<(), String> {
                     println!("  {}  {}", dup.title, dup.url);
                 }
             }
-            Ok(())
+            Ok(ExitCode::SUCCESS)
         }
         Command::Rm { url } => {
             let store_path = resolve_store_path().map_err(|e| e.to_string())?;
@@ -186,7 +187,7 @@ fn run(cli: Cli) -> Result<(), String> {
             println!("Removed \"{}\"", removed.frontmatter.display_title());
             println!("  {}", removed.frontmatter.url);
             println!("  {}", removed.path.display());
-            Ok(())
+            Ok(ExitCode::SUCCESS)
         }
         Command::Open { url, space } => {
             let config = Config::load().map_err(|e| e.to_string())?;
@@ -202,7 +203,7 @@ fn run(cli: Cli) -> Result<(), String> {
                 open(&store, &url, &resolver, &SystemLauncher).map_err(|e| e.to_string())?;
             println!("Opening \"{}\"", opened.frontmatter.display_title());
             println!("  {}", opened.frontmatter.url);
-            Ok(())
+            Ok(ExitCode::SUCCESS)
         }
     }
 }
@@ -221,17 +222,15 @@ fn render(results: &[&StoredBookmark], as_json: bool) {
     }
 }
 
-fn report(outcome: &AddOutcome) {
-    let (label, bookmark) = match outcome {
-        AddOutcome::Created(b) => ("Added", b),
-        AddOutcome::Matched(b) => ("Already saved as", b),
-    };
-    println!("{label} \"{}\"", bookmark.title);
-    println!("  {}", bookmark.url);
-    println!("  {}", bookmark.path.display());
-    if let AddOutcome::Created(b) = outcome {
-        if let Some(space) = &b.space {
-            println!("  space: {space}");
+fn report(outcome: &AddOutcome) -> ExitCode {
+    match outcome {
+        AddOutcome::Created(b) => {
+            println!("Saved ✓ {}", b.title);
+            ExitCode::SUCCESS
+        }
+        AddOutcome::Matched(b) => {
+            println!("Already saved: {}", b.title);
+            ExitCode::from(EXIT_ALREADY_SAVED)
         }
     }
 }
