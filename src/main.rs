@@ -12,6 +12,7 @@ use mdmarks::list::{bookmarks_in_space, list, render_line};
 use mdmarks::open::{open, SpaceResolver, SystemLauncher};
 use mdmarks::rm::rm;
 use mdmarks::search::rank;
+use mdmarks::spaces;
 use mdmarks::store::{Store, StoredBookmark};
 
 #[derive(Parser)]
@@ -47,7 +48,11 @@ enum Command {
         #[arg(long)]
         space: Option<String>,
         #[arg(long, value_enum)]
-        format: Option<SearchFormat>,
+        format: Option<Format>,
+    },
+    Spaces {
+        #[arg(long, value_enum)]
+        format: Option<Format>,
     },
     Import {
         file: PathBuf,
@@ -63,7 +68,7 @@ enum Command {
 }
 
 #[derive(Clone, Copy, ValueEnum)]
-enum SearchFormat {
+enum Format {
     Alfred,
 }
 
@@ -105,7 +110,7 @@ fn run(cli: Cli) -> Result<(), String> {
             let config = Config::load().map_err(|e| e.to_string())?;
             let store = Store::new(&config.store);
             match format {
-                Some(SearchFormat::Alfred) => {
+                Some(Format::Alfred) => {
                     let parsed = match space.as_deref() {
                         Some(flag) => alfred::AlfredQuery {
                             space: Some(flag),
@@ -128,6 +133,23 @@ fn run(cli: Cli) -> Result<(), String> {
                         bookmarks_in_space(&store, space.as_deref()).map_err(|e| e.to_string())?;
                     let results = rank(&bookmarks, &query);
                     render(&results, as_json);
+                }
+            }
+            Ok(())
+        }
+        Command::Spaces { format } => {
+            let config = Config::load().map_err(|e| e.to_string())?;
+            match format {
+                Some(Format::Alfred) => {
+                    println!(
+                        "{}",
+                        spaces::render_alfred(&config.spaces, config.default_space.as_deref())
+                    );
+                }
+                None => {
+                    for line in spaces::render_lines(&config.spaces) {
+                        println!("{line}");
+                    }
                 }
             }
             Ok(())

@@ -1,9 +1,11 @@
-use std::collections::HashMap;
 use std::path::PathBuf;
 
+use indexmap::IndexMap;
 use serde::Deserialize;
 
 pub const STORE_ENV: &str = "MDMARKS_STORE";
+
+pub type Spaces = IndexMap<String, SpaceConfig>;
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 pub struct SpaceConfig {
@@ -20,14 +22,14 @@ struct ConfigFile {
     #[serde(default)]
     default_space: Option<String>,
     #[serde(default)]
-    spaces: HashMap<String, SpaceConfig>,
+    spaces: Spaces,
 }
 
 #[derive(Debug)]
 pub struct Config {
     pub store: PathBuf,
     pub default_space: Option<String>,
-    pub spaces: HashMap<String, SpaceConfig>,
+    pub spaces: Spaces,
 }
 
 #[derive(Debug)]

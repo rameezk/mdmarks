@@ -1,7 +1,6 @@
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use crate::config::SpaceConfig;
+use crate::config::Spaces;
 use crate::select::by_exact_url;
 use crate::store::{Store, StoreError, StoredBookmark};
 
@@ -15,7 +14,7 @@ pub struct LaunchSpec {
 pub struct SpaceResolver<'a> {
     pub override_space: Option<&'a str>,
     pub default_space: Option<&'a str>,
-    pub spaces: &'a HashMap<String, SpaceConfig>,
+    pub spaces: &'a Spaces,
     pub app_support: &'a Path,
 }
 
@@ -288,6 +287,7 @@ fn resolve_launch_spec(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::SpaceConfig;
     use std::cell::RefCell;
     use tempfile::TempDir;
 
@@ -315,7 +315,7 @@ mod tests {
         std::fs::write(store.root().join(name), content).unwrap();
     }
 
-    fn spaces(pairs: &[(&str, &str, Option<&str>)]) -> HashMap<String, SpaceConfig> {
+    fn spaces(pairs: &[(&str, &str, Option<&str>)]) -> Spaces {
         pairs
             .iter()
             .map(|(name, browser, profile)| {
@@ -334,7 +334,7 @@ mod tests {
     fn resolver<'a>(
         override_space: Option<&'a str>,
         default_space: Option<&'a str>,
-        spaces: &'a HashMap<String, SpaceConfig>,
+        spaces: &'a Spaces,
     ) -> SpaceResolver<'a> {
         SpaceResolver {
             override_space,
@@ -589,10 +589,7 @@ mod tests {
         std::fs::write(dir.join("Local State"), contents).unwrap();
     }
 
-    fn resolver_with_support<'a>(
-        spaces: &'a HashMap<String, SpaceConfig>,
-        app_support: &'a Path,
-    ) -> SpaceResolver<'a> {
+    fn resolver_with_support<'a>(spaces: &'a Spaces, app_support: &'a Path) -> SpaceResolver<'a> {
         SpaceResolver {
             override_space: None,
             default_space: None,
@@ -606,8 +603,8 @@ mod tests {
         browser: &str,
         profile: &str,
         support_dir: Option<&str>,
-    ) -> HashMap<String, SpaceConfig> {
-        let mut map = HashMap::new();
+    ) -> Spaces {
+        let mut map = Spaces::new();
         map.insert(
             name.to_string(),
             SpaceConfig {
