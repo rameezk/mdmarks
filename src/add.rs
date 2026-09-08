@@ -13,6 +13,7 @@ pub struct BookmarkRef {
     pub path: PathBuf,
     pub url: String,
     pub title: String,
+    pub space: Option<String>,
 }
 
 pub enum AddOutcome {
@@ -43,6 +44,7 @@ pub fn add(
     store: &Store,
     url_input: &str,
     override_title: Option<&str>,
+    space: Option<&str>,
 ) -> Result<AddOutcome, AddError> {
     validate_http_url(url_input)?;
 
@@ -55,14 +57,17 @@ pub fn add(
                 path: bookmark.path,
                 url: bookmark.frontmatter.url,
                 title,
+                space: None,
             }));
         }
     }
 
+    let space = normalize_space(space);
     let title = resolve_title(override_title, url_input);
     let added = Utc::now().to_rfc3339();
 
-    let fm = Frontmatter::new(url_input.to_string(), title.clone(), added);
+    let mut fm = Frontmatter::new(url_input.to_string(), title.clone(), added);
+    fm.space = space.clone();
     let content = frontmatter::serialize(&fm, "").map_err(AddError::Frontmatter)?;
     let path = store
         .write_bookmark(&slug(&title), &content)
@@ -72,7 +77,15 @@ pub fn add(
         path,
         url: url_input.to_string(),
         title,
+        space,
     }))
+}
+
+fn normalize_space(space: Option<&str>) -> Option<String> {
+    space
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
 }
 
 fn resolve_title(override_title: Option<&str>, url: &str) -> String {
