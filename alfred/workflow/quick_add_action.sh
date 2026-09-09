@@ -10,15 +10,11 @@ args=(add "${url:-}")
 result="$("${MDMARKS_BIN:-mdmarks}" "${args[@]}" 2>&1)"
 
 if [ -n "${1:-}" ]; then
-	body="${url:-}"$'\n'"Space: ${1}"
+	space="${1}"
 else
-	body="${url:-}"$'\n'"Space: (default)"
+	space="(default)"
 fi
 
-osascript - "$result" "$body" <<'OSA' >/dev/null 2>&1
-on run {subtitleText, bodyText}
-	display notification bodyText with title "mdmarks" subtitle subtitleText
-end run
-OSA
+printf '%s\n%s · %s\n' "$result" "${url:-}" "$space"
 
 exit 0
