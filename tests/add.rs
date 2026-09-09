@@ -236,7 +236,14 @@ fn non_http_scheme_is_rejected() {
 fn space_flag_is_written_to_frontmatter() {
     let store = TempDir::new().unwrap();
     mdmarks(&store)
-        .args(["add", "https://example.com/a", "--title", "A", "--space", "work"])
+        .args([
+            "add",
+            "https://example.com/a",
+            "--title",
+            "A",
+            "--space",
+            "work",
+        ])
         .assert()
         .success();
     let content = read_only_file(&store);
@@ -258,7 +265,14 @@ fn no_space_flag_writes_no_space_field() {
 fn blank_space_collapses_to_absent() {
     let store = TempDir::new().unwrap();
     mdmarks(&store)
-        .args(["add", "https://example.com/a", "--title", "A", "--space", "   "])
+        .args([
+            "add",
+            "https://example.com/a",
+            "--title",
+            "A",
+            "--space",
+            "   ",
+        ])
         .assert()
         .success();
     let content = read_only_file(&store);
@@ -269,7 +283,14 @@ fn blank_space_collapses_to_absent() {
 fn space_is_trimmed() {
     let store = TempDir::new().unwrap();
     mdmarks(&store)
-        .args(["add", "https://example.com/a", "--title", "A", "--space", "  work  "])
+        .args([
+            "add",
+            "https://example.com/a",
+            "--title",
+            "A",
+            "--space",
+            "  work  ",
+        ])
         .assert()
         .success();
     let content = read_only_file(&store);
@@ -291,7 +312,10 @@ fn re_adding_existing_url_with_space_does_not_mutate() {
         .stdout(predicates::str::contains("Already saved"));
     assert_eq!(md_files(&store).len(), 1);
     let content = read_only_file(&store);
-    assert!(!content.contains("space"), "space not applied on match: {content}");
+    assert!(
+        !content.contains("space"),
+        "space not applied on match: {content}"
+    );
 }
 
 #[test]

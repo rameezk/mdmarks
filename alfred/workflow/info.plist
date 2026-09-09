@@ -21,6 +21,19 @@
 				<false/>
 			</dict>
 		</array>
+		<key>B7A1C2D3-0001-4001-8001-0000000000A1</key>
+		<array>
+			<dict>
+				<key>destinationuid</key>
+				<string>B7A1C2D3-0002-4002-8002-0000000000A2</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+		</array>
 	</dict>
 	<key>createdby</key>
 	<string>Rameez Khan</string>
@@ -103,6 +116,76 @@ exec "${MDMARKS_BIN:-mdmarks}" open "$1"</string>
 			<key>version</key>
 			<integer>2</integer>
 		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>alfredfiltersresults</key>
+				<false/>
+				<key>alfredfiltersresultsmatchmode</key>
+				<integer>0</integer>
+				<key>argumenttrimmode</key>
+				<integer>0</integer>
+				<key>argumenttype</key>
+				<integer>1</integer>
+				<key>escaping</key>
+				<integer>102</integer>
+				<key>keyword</key>
+				<string>bma</string>
+				<key>queuedelaycustom</key>
+				<integer>3</integer>
+				<key>queuedelayimmediatelyinitially</key>
+				<true/>
+				<key>queuedelaymode</key>
+				<integer>0</integer>
+				<key>queuemode</key>
+				<integer>1</integer>
+				<key>runningsubtext</key>
+				<string></string>
+				<key>script</key>
+				<string></string>
+				<key>scriptargtype</key>
+				<integer>1</integer>
+				<key>scriptfile</key>
+				<string>./quick_add.sh</string>
+				<key>subtext</key>
+				<string>Add the clipboard URL as a Bookmark; type an optional title, then pick a Space:</string>
+				<key>title</key>
+				<string>Quick-add from clipboard</string>
+				<key>type</key>
+				<integer>8</integer>
+				<key>withspace</key>
+				<true/>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.input.scriptfilter</string>
+			<key>uid</key>
+			<string>B7A1C2D3-0001-4001-8001-0000000000A1</string>
+			<key>version</key>
+			<integer>3</integer>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>concurrently</key>
+				<false/>
+				<key>escaping</key>
+				<integer>102</integer>
+				<key>script</key>
+				<string></string>
+				<key>scriptargtype</key>
+				<integer>1</integer>
+				<key>scriptfile</key>
+				<string>./quick_add_action.sh</string>
+				<key>type</key>
+				<integer>0</integer>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.action.script</string>
+			<key>uid</key>
+			<string>B7A1C2D3-0002-4002-8002-0000000000A2</string>
+			<key>version</key>
+			<integer>2</integer>
+		</dict>
 	</array>
 	<key>readme</key>
 	<string>Fuzzy-find and open mdmarks Bookmarks. Keyword `bm` runs a Script Filter over `mdmarks search --format alfred`; Enter runs `mdmarks open` on the selected Bookmark's verbatim URL; right-arrow (→) hands the URL to Alfred's Universal Actions (Copy URL, and the rest). The graph is authored directly in this info.plist - do not re-export from the Alfred GUI, which would drop the committed structure. Requires the `mdmarks` binary; the scripts prepend the standard Nix profile directories to PATH, or set MDMARKS_BIN in the configuration sheet to an absolute path.</string>
@@ -121,6 +204,20 @@ exec "${MDMARKS_BIN:-mdmarks}" open "$1"</string>
 			<real>120</real>
 			<key>ypos</key>
 			<real>120</real>
+		</dict>
+		<key>B7A1C2D3-0001-4001-8001-0000000000A1</key>
+		<dict>
+			<key>xpos</key>
+			<real>120</real>
+			<key>ypos</key>
+			<real>300</real>
+		</dict>
+		<key>B7A1C2D3-0002-4002-8002-0000000000A2</key>
+		<dict>
+			<key>xpos</key>
+			<real>420</real>
+			<key>ypos</key>
+			<real>300</real>
 		</dict>
 	</dict>
 	<key>userconfigurationconfig</key>
