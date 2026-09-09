@@ -401,13 +401,7 @@ fn action_passes_space_and_title_when_present() {
     );
 }
 
-struct Notified {
-    success: bool,
-    subtitle: String,
-    body: String,
-}
-
-fn run_action_notification(space_arg: &str, url: &str, add_exit: u8, add_stdout: &str) -> Notified {
+fn run_action_body(space_arg: &str, url: &str, add_exit: u8, add_stdout: &str) -> (bool, String) {
     let shim = TempDir::new().unwrap();
     make_shim(
         &shim,
@@ -415,15 +409,6 @@ fn run_action_notification(space_arg: &str, url: &str, add_exit: u8, add_stdout:
         &format!(
             "#!/usr/bin/env bash\nprintf '%s\\n' {}\nexit {add_exit}\n",
             shell_quote(add_stdout)
-        ),
-    );
-    let recorded = shim.path().join("notification");
-    make_shim(
-        &shim,
-        "osascript",
-        &format!(
-            "#!/usr/bin/env bash\ncat >/dev/null\nprintf '%s\\0' \"$@\" > {}\n",
-            shell_quote(recorded.to_str().unwrap())
         ),
     );
 
@@ -444,56 +429,53 @@ fn run_action_notification(space_arg: &str, url: &str, add_exit: u8, add_stdout:
         .output()
         .unwrap();
 
-    let recorded = std::fs::read_to_string(&recorded).unwrap();
-    let parts: Vec<&str> = recorded.split('\0').filter(|s| !s.is_empty()).collect();
-    Notified {
-        success: out.status.success(),
-        subtitle: parts.get(1).unwrap_or(&"").to_string(),
-        body: parts.get(2).unwrap_or(&"").to_string(),
-    }
+    (out.status.success(), String::from_utf8(out.stdout).unwrap())
 }
 
 #[test]
-fn action_notifies_with_the_result_line_and_url_for_the_default_row() {
-    let n = run_action_notification("", "https://example.com/x", 0, "Saved ✓ Example");
-    assert!(
-        n.success,
-        "the action must exit 0 so Alfred does not flag an error"
-    );
-    assert_eq!(n.subtitle, "Saved ✓ Example");
-    assert!(n.body.contains("https://example.com/x"), "body: {}", n.body);
-    assert!(
-        n.body.contains("(default)"),
-        "body must name the Space: {}",
-        n.body
-    );
+fn action_output_carries_the_result_line_and_url_for_the_default_row() {
+    let (ok, body) = run_action_body("", "https://example.com/x", 0, "Saved ✓ Example");
+    assert!(ok, "the action must exit 0 so Alfred does not flag an error");
+    assert!(body.contains("Saved ✓ Example"), "body: {body}");
+    assert!(body.contains("https://example.com/x"), "body: {body}");
+    assert!(body.contains("(default)"), "body must name the Space: {body}");
 }
 
 #[test]
-fn action_notifies_the_chosen_space_and_survives_already_saved_exit() {
-    let n = run_action_notification("work", "https://example.com/x", 3, "Already saved: Example");
+fn action_output_names_the_chosen_space_and_survives_already_saved_exit() {
+    let (ok, body) = run_action_body("work", "https://example.com/x", 3, "Already saved: Example");
     assert!(
-        n.success,
+        ok,
         "a non-zero add (already saved) must not leave the action non-zero"
     );
-    assert_eq!(n.subtitle, "Already saved: Example");
-    assert!(n.body.contains("Space: work"), "body: {}", n.body);
+    assert!(body.contains("Already saved: Example"), "body: {body}");
+    assert!(body.contains("work"), "body must name the Space: {body}");
 }
 
 #[test]
-fn action_notifies_the_error_text_when_add_fails() {
-    let n = run_action_notification(
-        "",
-        "https://example.com/x",
-        1,
-        "error: not a valid http(s) url",
+fn action_output_includes_the_error_text_when_add_fails() {
+    let (ok, body) = run_action_body("", "https://example.com/x", 1, "error: not a valid http(s) url");
+    assert!(ok, "an add error must not leave the action non-zero");
+    assert!(
+        body.contains("error: not a valid http(s) url"),
+        "body: {body}"
     );
-    assert!(n.success, "an add error must not leave the action non-zero");
-    assert_eq!(n.subtitle, "error: not a valid http(s) url");
+}
+
+fn find_action_by_script_substr<'a>(plist: &'a Value, needle: &str) -> &'a plist::Dictionary {
+    objects_of_type(plist, "alfred.workflow.action.script")
+        .into_iter()
+        .find(|o| {
+            config(o)
+                .get("script")
+                .and_then(Value::as_string)
+                .is_some_and(|s| s.contains(needle))
+        })
+        .unwrap_or_else(|| panic!("no action.script whose script contains {needle}"))
 }
 
 #[test]
-fn info_plist_wires_bma_to_the_self_notifying_quick_add_action() {
+fn info_plist_wires_bma_through_the_action_to_a_native_notification() {
     let plist = info_plist();
 
     let filter = find_by_config(
@@ -513,25 +495,45 @@ fn info_plist_wires_bma_to_the_self_notifying_quick_add_action() {
         Some(1)
     );
 
-    let action = find_by_config(
-        &plist,
-        "alfred.workflow.action.script",
-        "scriptfile",
-        "./quick_add_action.sh",
+    let action = find_action_by_script_substr(&plist, "quick_add_action.sh");
+    assert_eq!(
+        config(action)
+            .get("scriptargtype")
+            .and_then(Value::as_signed_integer),
+        Some(1)
+    );
+    assert!(
+        config(action)
+            .get("scriptfile")
+            .and_then(Value::as_string)
+            .unwrap_or("")
+            .is_empty(),
+        "a Run Script action ignores scriptfile, so the action must inline its script"
     );
 
     assert!(
         wired(&plist, filter, action),
         "Enter on the bma Script Filter must run the quick-add action"
     );
+
+    let notification = object_of_type(&plist, "alfred.workflow.output.notification");
     assert!(
-        objects_of_type(&plist, "alfred.workflow.output.notification").is_empty(),
-        "the action posts its own notification, so there must be no notification node to swallow the result"
+        wired(&plist, action, notification),
+        "the action must feed a native Post Notification node"
+    );
+    assert_eq!(
+        config(notification).get("text").and_then(Value::as_string),
+        Some("{query}"),
+        "the notification body must come from the action's stdout"
     );
 
     let body = std::fs::read_to_string(quick_add_action_script()).unwrap();
     assert!(
-        body.contains("display notification"),
-        "the quick-add action must post its own notification"
+        !body.contains("osascript"),
+        "notifications are native now, not osascript: {body}"
+    );
+    assert!(
+        body.contains("printf"),
+        "the action must print its body to stdout for the notification node: {body}"
     );
 }

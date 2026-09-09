@@ -34,6 +34,19 @@
 				<false/>
 			</dict>
 		</array>
+		<key>B7A1C2D3-0002-4002-8002-0000000000A2</key>
+		<array>
+			<dict>
+				<key>destinationuid</key>
+				<string>B7A1C2D3-0003-4003-8003-0000000000A3</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+		</array>
 	</dict>
 	<key>createdby</key>
 	<string>Rameez Khan</string>
@@ -171,11 +184,12 @@ exec "${MDMARKS_BIN:-mdmarks}" open "$1"</string>
 				<key>escaping</key>
 				<integer>102</integer>
 				<key>script</key>
-				<string></string>
+				<string>export PATH="${HOME:-}/.nix-profile/bin:/etc/profiles/per-user/${USER:-}/bin:/run/current-system/sw/bin:${PATH:-}"
+exec ./quick_add_action.sh "$1"</string>
 				<key>scriptargtype</key>
 				<integer>1</integer>
 				<key>scriptfile</key>
-				<string>./quick_add_action.sh</string>
+				<string></string>
 				<key>type</key>
 				<integer>0</integer>
 			</dict>
@@ -185,6 +199,27 @@ exec "${MDMARKS_BIN:-mdmarks}" open "$1"</string>
 			<string>B7A1C2D3-0002-4002-8002-0000000000A2</string>
 			<key>version</key>
 			<integer>2</integer>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>lastpathcomponent</key>
+				<false/>
+				<key>onlyshowifquerypopulated</key>
+				<false/>
+				<key>removeextension</key>
+				<false/>
+				<key>text</key>
+				<string>{query}</string>
+				<key>title</key>
+				<string>mdmarks</string>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.output.notification</string>
+			<key>uid</key>
+			<string>B7A1C2D3-0003-4003-8003-0000000000A3</string>
+			<key>version</key>
+			<integer>1</integer>
 		</dict>
 	</array>
 	<key>readme</key>
@@ -216,6 +251,13 @@ exec "${MDMARKS_BIN:-mdmarks}" open "$1"</string>
 		<dict>
 			<key>xpos</key>
 			<real>420</real>
+			<key>ypos</key>
+			<real>300</real>
+		</dict>
+		<key>B7A1C2D3-0003-4003-8003-0000000000A3</key>
+		<dict>
+			<key>xpos</key>
+			<real>720</real>
 			<key>ypos</key>
 			<real>300</real>
 		</dict>

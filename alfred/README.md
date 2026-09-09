@@ -24,7 +24,7 @@ The bundle ships fully wired - double-click to import and it works, no manual as
 
 Copy an http(s) URL, then run `bma`. The Script Filter reads the clipboard (`pbpaste`) and shows the configured Spaces as rows - a leading `(default)` row adds with no `--space` (inheriting `default_space`). A non-http(s) clipboard yields a single non-actionable row and adds nothing.
 
-Whatever you type is the title override, not a row filter; an empty query lets the CLI fetch the page title (one HTTP round-trip, so a slow page delays the confirmation by a second or two). Enter runs `mdmarks add <url> --space <space> [--title <query>]`; the action posts its own macOS notification showing the result (`Saved ✓ …` / `Already saved: …` / the error), the URL, and the chosen Space. Design rationale: `docs/adr/0006-alfred-quick-add-interaction-model.md`.
+Whatever you type is the title override, not a row filter; an empty query lets the CLI fetch the page title (one HTTP round-trip, so a slow page delays the confirmation by a second or two). Enter runs `mdmarks add <url> --space <space> [--title <query>]`; the action prints its result to stdout and a native Alfred Post Notification node shows it - the result line (`Saved ✓ …` / `Already saved: …` / the error), the URL, and the chosen Space. The notification is posted by Alfred, so a Focus mode that allows Alfred lets it through. Design rationale: `docs/adr/0006-alfred-quick-add-interaction-model.md`.
 
 ## Finding the binary
 
@@ -41,7 +41,7 @@ The node graph is authored directly in `workflow/info.plist` and committed as th
   - `info.plist` - metadata, environment variables, the configuration sheet, **and** the wired node graph (`objects` + `connections`).
   - `script_filter.sh` - the search Script Filter body: prepends the Nix `PATH` and runs `mdmarks search "$1" --format alfred`.
   - `quick_add.sh` - the `bma` Script Filter body: reads the clipboard, and on an http(s) URL shapes `mdmarks spaces --format alfred` into the Space picker (carrying the URL and typed title as feed variables). Requires `jq`, resolved off the same Nix `PATH`.
-  - `quick_add_action.sh` - the `bma` Run Script body: runs `mdmarks add <url> [--space] [--title]` and posts the result as a macOS notification via `osascript`. It posts the notification itself (rather than wiring a Post Notification node) because Alfred does not forward a Run Script action's stdout to a downstream notification, and `mdmarks add`'s non-zero exit codes (already-saved, error) would otherwise be swallowed.
+  - `quick_add_action.sh` - the `bma` Run Script body: runs `mdmarks add <url> [--space] [--title]` and prints the result line, URL, and chosen Space to stdout, then `exit 0` (so `mdmarks add`'s non-zero exit codes for already-saved/error do not make Alfred flag the workflow). A native Post Notification node downstream renders that stdout as `{query}`. The `bma` action inlines `exec ./quick_add_action.sh "$1"` in its `script` field rather than pointing `scriptfile` at it: a Run Script **action** (unlike a Script Filter) ignores `scriptfile` and silently runs Alfred's default `echo -n $query` template instead.
   - `icon.png` - workflow icon (placeholder).
 - `mdmarks.alfredworkflow` - the packaged bundle. Rebuild it from `workflow/` with:
 
